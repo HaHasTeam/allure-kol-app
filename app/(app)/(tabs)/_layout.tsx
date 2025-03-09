@@ -1,5 +1,4 @@
 import Feather from "@expo/vector-icons/Feather";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Header } from "@react-navigation/elements";
 import { Tabs, useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -17,7 +16,7 @@ import { FontAwesome5 } from "@expo/vector-icons";
 import MyText from "@/components/common/MyText";
 import useUser from "@/hooks/api/useUser";
 import { TUser } from "@/types/user";
-import ShopHeader from "@/components/header/ShopHeader";
+import KOLHeader from "@/components/header/KOLHeader";
 
 export default function TabLayout() {
   const router = useRouter();
@@ -70,13 +69,10 @@ export default function TabLayout() {
         options={{
           title: "Home",
           header: () => (
-            <ShopHeader
-              cartItemCount={3} // Replace with your actual cart count
-              notificationCount={5} // Replace with your actual notification count
-              onSearchChange={(text) => {
-                // Handle search text changes here
-                console.log("Search text:", text);
-              }}
+            <KOLHeader
+              userName={user.username || "KOL"}
+              userAvatar={user.avatar}
+              notificationCount={5}
             />
           ),
           tabBarIcon: ({ color, focused }) => (
@@ -95,26 +91,7 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: "Explore",
-          tabBarIcon: ({ color, focused }) => (
-            <View
-              style={[
-                style.iconContainer,
-                focused && { backgroundColor: myTheme.lighter },
-              ]}
-            >
-              <Feather
-                size={width <= myDeviceWidth.sm ? 21 : 25}
-                name="search"
-                color={color}
-              />
-            </View>
-          ),
-        }}
-      />
+
       <Tabs.Screen
         name="live"
         options={{
@@ -136,26 +113,7 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="cart"
-        options={{
-          title: "Cart",
-          tabBarIcon: ({ color, focused }) => (
-            <View
-              style={[
-                style.iconContainer,
-                focused && { backgroundColor: myTheme.lighter },
-              ]}
-            >
-              <Feather
-                size={width <= myDeviceWidth.sm ? 21 : 25}
-                name="shopping-cart"
-                color={color}
-              />
-            </View>
-          ),
-        }}
-      />
+
       <Tabs.Screen
         name="profile"
         listeners={{

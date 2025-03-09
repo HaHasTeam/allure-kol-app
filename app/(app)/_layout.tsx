@@ -101,6 +101,12 @@ function AppLayout() {
             ),
           }}
         />
+        <Stack.Screen
+          name="(livestream)/create-livestream"
+          options={{
+            headerShown: false,
+          }}
+        />
 
         <Stack.Screen
           name="(profile)/contact"
