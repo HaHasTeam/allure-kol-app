@@ -1,5 +1,7 @@
 "use client";
 
+import type React from "react";
+
 import { useState, useEffect } from "react";
 import {
   View,
@@ -11,6 +13,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  FlatList,
 } from "react-native";
 import { Text, Card } from "react-native-ui-lib";
 import { useRouter } from "expo-router";
@@ -21,13 +24,66 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { myTheme } from "@/constants/index";
 import ProductSelectionModal from "@/components/modals/product-selection-modal";
-
 import { IResponseProduct } from "@/types/product";
+import useLivestreams from "@/hooks/api/useLivestreams";
 
-// Add this import at the top with other imports
-// import useLivestreams from "@/hooks/api/useLivestreams";
+const uploadFile = async (fileUri: string): Promise<string | null> => {
+  try {
+    // Create a form data object
+    const formData = new FormData();
 
-// Mock account data - in a real app, you would get this from your auth context
+    // Get the file name from the URI
+    const fileName = fileUri.split("/").pop() || "image.jpg";
+
+    // Determine the file type
+    const match = /\.(\w+)$/.exec(fileName);
+    const fileType = match ? `image/${match[1]}` : "image/jpeg";
+
+    // Append the file to the form data
+    formData.append("files", {
+      uri: fileUri,
+      name: fileName,
+      type: fileType,
+    } as any);
+
+    console.log("Uploading file:", fileName);
+
+    const response = await fetch(
+      `${process.env.EXPO_PUBLIC_API_URL}/files/upload`,
+      {
+        method: "POST",
+        body: formData,
+        headers: {
+          "Content-Type": "multipart/form-data",
+          // Add authorization header if needed
+          // 'Authorization': `Bearer ${token}`
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to upload file");
+    }
+
+    // Parse the response
+    const result = await response.json();
+    console.log("result", result, result.fileUrl);
+
+    // Return the file ID or URL from the response
+    return result.data[0];
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    return null;
+  }
+};
+
+const RequiredLabel = ({ children }: { children: React.ReactNode }) => (
+  <Text style={styles.label}>
+    {children} <Text style={styles.requiredAsterisk}>*</Text>
+  </Text>
+);
+
 const MOCK_ACCOUNT = {
   id: "8e0d14c6-e5c6-42fa-9d0f-9ad59eef1935",
   name: "KOL Account",
@@ -110,34 +166,39 @@ export default function CreateLivestreamScreen() {
   };
 
   // Handle product selection confirmation
-  const handleProductSelectionConfirm = (selectedIds: string[]) => {
+  // Updated to receive both IDs and full product objects
+  const handleProductSelectionConfirm = (
+    selectedIds: string[],
+    productObjects: IResponseProduct[]
+  ) => {
+    console.log(`Selection confirmed: ${selectedIds.length} products selected`);
+
+    // First update the product details to ensure the UI can render them
+    setSelectedProductDetails(productObjects);
+
+    // Then update the IDs
     setSelectedProducts(selectedIds);
-    setProductModalVisible(false);
+
+    // Force a re-render by using a small timeout
+    setTimeout(() => {
+      // This will trigger the useEffect that updates the form value
+      setValue("products", selectedIds);
+      trigger("products");
+    }, 50);
   };
 
   // Update form value when products selection changes
   useEffect(() => {
-    setValue("products", selectedProducts);
-    trigger("products");
-
-    // Fetch product details when selection changes
-    const fetchSelectedProductDetails = async () => {
-      if (selectedProducts.length > 0) {
-        try {
-          // const products = await getProductsByIds(selectedProducts);
-          setSelectedProductDetails([]);
-        } catch (error) {
-          console.error("Error fetching product details:", error);
-        }
-      } else {
-        setSelectedProductDetails([]);
-      }
-    };
-
-    fetchSelectedProductDetails();
+    if (selectedProducts.length > 0) {
+      console.log(
+        `useEffect triggered: ${selectedProducts.length} products in state`
+      );
+      setValue("products", selectedProducts);
+      trigger("products");
+    }
   }, [selectedProducts, setValue, trigger]);
 
-  // Handle thumbnail selection
+  // Update the pickThumbnail function
   const pickThumbnail = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -157,9 +218,12 @@ export default function CreateLivestreamScreen() {
           return;
         }
 
+        // Store the image URI for later upload
         setThumbnailImage(asset.uri);
-        setValue("thumbnail", asset.uri);
+        // We don't set the form value here anymore, as we'll use the uploaded URL later
         setThumbnailError(null);
+
+        console.log("Thumbnail selected:", asset.uri);
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -167,29 +231,12 @@ export default function CreateLivestreamScreen() {
     }
   };
 
-  // Validate start time is at least 4 hours in the future
-  const validateStartTime = (time: Date) => {
-    if (time.getTime() < minStartTime.getTime()) {
-      return "Start time must be at least 4 hours from now";
-    }
-    return true;
-  };
-
-  // Validate end time is after start time and is required
-  const validateEndTime = (time?: Date) => {
-    if (!time) return "End time is required";
-    if (time.getTime() <= startTime.getTime()) {
-      return "End time must be after start time";
-    }
-    return true;
-  };
-
   // Add this near the top of the component with other state variables
-  // const {
-  //   createLivestream,
-  //   isLoading: isApiLoading,
-  //   error: apiError,
-  // } = useLivestreams();
+  const {
+    createLivestream,
+    isLoading: isApiLoading,
+    error: apiError,
+  } = useLivestreams();
 
   // Replace the onSubmit function with this implementation
   const onSubmit = async (data: FormData) => {
@@ -207,20 +254,44 @@ export default function CreateLivestreamScreen() {
     setIsSubmitting(true);
 
     try {
+      // If there's a thumbnail, upload it first
+      let thumbnailUrl = "";
+      if (thumbnailImage) {
+        setThumbnailError(null);
+
+        // Show uploading status
+        Alert.alert(
+          "Uploading",
+          "Uploading thumbnail image...",
+          [{ text: "OK" }],
+          { cancelable: false }
+        );
+
+        // Upload the thumbnail
+        const uploadedFileUrl = await uploadFile(thumbnailImage);
+
+        if (!uploadedFileUrl) {
+          throw new Error("Failed to upload thumbnail image");
+        }
+
+        thumbnailUrl = uploadedFileUrl;
+        console.log("Thumbnail uploaded successfully:", thumbnailUrl);
+      }
+
       // Format the data for API submission
       const formattedData = {
         title: data.title,
         startTime: data.startTime.toISOString(),
         endTime: data.endTime ? data.endTime.toISOString() : "",
         account: data.account,
-        thumbnail: data.thumbnail || "",
+        thumbnail: thumbnailUrl, // Use the uploaded file URL
         products: data.products,
       };
 
       console.log("Submitting data:", formattedData);
 
       // Use the createLivestream function from our hook
-      const result = true;
+      const result = await createLivestream(formattedData);
 
       if (result) {
         Alert.alert(
@@ -235,7 +306,7 @@ export default function CreateLivestreamScreen() {
         );
       } else {
         // The error will be handled by the hook and stored in apiError
-        // throw new Error(apiError || "Failed to create livestream");
+        throw new Error(apiError || "Failed to create livestream");
       }
     } catch (error) {
       console.error("Error creating livestream:", error);
@@ -248,6 +319,30 @@ export default function CreateLivestreamScreen() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Validation functions for start and end times
+  const validateStartTime = (selectedDateTime: Date): true | string => {
+    const now = new Date();
+    const minAllowedTime = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
+
+    if (selectedDateTime < minAllowedTime) {
+      return "Start time must be at least 4 hours from now";
+    }
+
+    return true;
+  };
+
+  const validateEndTime = (selectedDateTime: Date): true | string => {
+    if (!startTime) {
+      return "Start time must be selected first";
+    }
+
+    if (selectedDateTime <= startTime) {
+      return "End time must be after start time";
+    }
+
+    return true;
   };
 
   return (
@@ -269,7 +364,7 @@ export default function CreateLivestreamScreen() {
 
           {/* Title Input */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Title</Text>
+            <RequiredLabel>Title</RequiredLabel>
             <Controller
               control={control}
               rules={{
@@ -307,7 +402,7 @@ export default function CreateLivestreamScreen() {
 
           {/* Start Date & Time */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Start Date & Time</Text>
+            <RequiredLabel>Start Date & Time</RequiredLabel>
             <View style={styles.dateTimeContainer}>
               <TouchableOpacity
                 style={[
@@ -407,7 +502,7 @@ export default function CreateLivestreamScreen() {
           {/* End Date & Time */}
           <View style={styles.formGroup}>
             <View style={styles.labelRow}>
-              <Text style={styles.label}>End Date & Time</Text>
+              <RequiredLabel>End Date & Time</RequiredLabel>
             </View>
             <View style={styles.dateTimeContainer}>
               <TouchableOpacity
@@ -424,7 +519,7 @@ export default function CreateLivestreamScreen() {
                   style={styles.dateTimeIcon}
                 />
                 <Text style={styles.dateTimeText}>
-                  {endTime ? formatDate(endTime) : "Select date (required)"}
+                  {endTime ? formatDate(endTime) : "Select date "}
                 </Text>
               </TouchableOpacity>
 
@@ -442,7 +537,7 @@ export default function CreateLivestreamScreen() {
                   style={styles.dateTimeIcon}
                 />
                 <Text style={styles.dateTimeText}>
-                  {endTime ? formatTime(endTime) : "Select time (required)"}
+                  {endTime ? formatTime(endTime) : "Select time"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -550,7 +645,9 @@ export default function CreateLivestreamScreen() {
 
         {/* Products Selection */}
         <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Select Products</Text>
+          <Text style={styles.sectionTitle}>
+            Select Products <Text style={styles.requiredAsterisk}>*</Text>
+          </Text>
           <Text style={styles.sectionDescription}>
             Choose products to feature in your livestream
           </Text>
@@ -565,55 +662,97 @@ export default function CreateLivestreamScreen() {
               color="#fff"
               style={styles.selectProductsIcon}
             />
-            <Text style={styles.selectProductsText}>Select Products</Text>
+            <Text style={styles.selectProductsText}>
+              {selectedProducts.length > 0
+                ? `Manage Products (${selectedProducts.length})`
+                : "Select Products"}
+            </Text>
           </TouchableOpacity>
 
           {selectedProductDetails.length > 0 ? (
             <View style={styles.selectedProductsContainer}>
-              <Text style={styles.selectedProductsTitle}>
-                Selected Products ({selectedProductDetails.length})
-              </Text>
-              <ScrollView
+              <View style={styles.selectedProductsHeader}>
+                <Text style={styles.selectedProductsTitle}>
+                  Selected Products ({selectedProductDetails.length})
+                </Text>
+                {selectedProductDetails.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.viewAllButton}
+                    onPress={openProductModal}
+                  >
+                    <Text style={styles.viewAllText}>Manage</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <FlatList
+                data={selectedProductDetails}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.selectedProductsScroll}
-              >
-                {selectedProductDetails.map((product) => {
+                keyExtractor={(item) => item.id || Math.random().toString()}
+                renderItem={({ item }) => {
                   // Get the main image URL or a placeholder
                   const imageUrl =
-                    product.images && product.images.length > 0
-                      ? product.images[0].fileUrl
+                    item.images &&
+                    item.images.length > 0 &&
+                    item.images[0].fileUrl
+                      ? item.images[0].fileUrl
                       : "https://via.placeholder.com/100";
 
                   // Format price with currency
-                  const formattedPrice = product.price
-                    ? `$${product.price.toFixed(2)}`
+                  const formattedPrice = item.price
+                    ? `$${item.price.toFixed(2)}`
                     : "Price unavailable";
 
                   return (
-                    <View key={product.id} style={styles.selectedProductItem}>
+                    <View key={item.id} style={styles.selectedProductItem}>
                       <Image
                         source={{ uri: imageUrl }}
                         style={styles.selectedProductImage}
                       />
-                      <Text
-                        style={styles.selectedProductName}
-                        numberOfLines={1}
-                      >
-                        {product.name}
-                      </Text>
-                      <Text style={styles.selectedProductPrice}>
-                        {formattedPrice}
-                      </Text>
+                      <View style={styles.selectedProductBadge}>
+                        <Feather name="check" size={12} color="#fff" />
+                      </View>
+                      <View style={styles.selectedProductInfo}>
+                        <Text
+                          style={styles.selectedProductName}
+                          numberOfLines={1}
+                        >
+                          {item.name}
+                        </Text>
+                        <Text style={styles.selectedProductPrice}>
+                          {formattedPrice}
+                        </Text>
+                        <View style={styles.selectedProductMeta}>
+                          <Text style={styles.selectedProductStock}>
+                            {item.quantity !== undefined
+                              ? `${item.quantity} in stock`
+                              : ""}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
                   );
-                })}
-              </ScrollView>
+                }}
+                ListEmptyComponent={
+                  <View style={styles.emptyProductsContainer}>
+                    <Feather name="shopping-bag" size={24} color="#94a3b8" />
+                    <Text style={styles.emptyProductsText}>
+                      No products selected
+                    </Text>
+                  </View>
+                }
+              />
             </View>
           ) : (
-            <Text style={styles.errorText}>
-              Please select at least one product
-            </Text>
+            <View style={styles.emptyProductsContainer}>
+              <Feather name="shopping-bag" size={24} color="#94a3b8" />
+              <Text style={styles.emptyProductsText}>No products selected</Text>
+              <Text style={styles.emptyProductsSubtext}>
+                Please select at least one product
+              </Text>
+            </View>
           )}
         </Card>
 
@@ -621,13 +760,15 @@ export default function CreateLivestreamScreen() {
         <TouchableOpacity
           style={[
             styles.submitButton,
-            (isSubmitting || selectedProducts.length === 0) &&
+            (isSubmitting || isApiLoading || selectedProducts.length === 0) &&
               styles.submitButtonDisabled,
           ]}
           onPress={handleSubmit(onSubmit)}
-          disabled={isSubmitting || selectedProducts.length === 0}
+          disabled={
+            isSubmitting || isApiLoading || selectedProducts.length === 0
+          }
         >
-          {isSubmitting ? (
+          {isSubmitting || isApiLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <>
@@ -800,43 +941,112 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#fff",
   },
-  selectedProductsContainer: {
-    marginTop: 8,
+  selectedProductsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
   },
-  selectedProductsTitle: {
+  viewAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 16,
+  },
+  viewAllText: {
+    fontSize: 12,
+    color: myTheme.primary,
+    fontWeight: "500",
+  },
+  selectedProductBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: myTheme.primary,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1,
+  },
+  selectedProductInfo: {
+    padding: 8,
+  },
+  selectedProductMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  selectedProductStock: {
+    fontSize: 10,
+    color: "#64748b",
+  },
+  emptyProductsContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  emptyProductsText: {
     fontSize: 14,
     fontWeight: "500",
+    color: "#64748b",
+    marginTop: 8,
+  },
+  emptyProductsSubtext: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginTop: 4,
+  },
+  selectedProductsContainer: {
+    marginTop: 16,
+  },
+  selectedProductsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
     color: "#0f172a",
-    marginBottom: 8,
   },
   selectedProductsScroll: {
-    flexDirection: "row",
+    marginHorizontal: -8,
   },
   selectedProductItem: {
-    width: 120,
-    marginRight: 12,
+    width: 160,
+    marginHorizontal: 8,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: "hidden",
     backgroundColor: "#fff",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   selectedProductImage: {
     width: "100%",
-    height: 100,
+    height: 120,
+    resizeMode: "cover",
   },
   selectedProductName: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "500",
     color: "#0f172a",
-    marginTop: 4,
-    marginHorizontal: 8,
+    marginBottom: 4,
   },
   selectedProductPrice: {
-    fontSize: 12,
-    color: "#64748b",
-    marginBottom: 8,
-    marginHorizontal: 8,
+    fontSize: 14,
+    fontWeight: "700",
+    color: myTheme.primary,
   },
   submitButton: {
     flexDirection: "row",
@@ -868,5 +1078,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#fff",
+  },
+  requiredAsterisk: {
+    color: "#ef4444",
+    fontWeight: "bold",
   },
 });

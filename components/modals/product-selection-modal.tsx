@@ -1,13 +1,20 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect, useCallback } from "react";
-import { View, StyleSheet, Modal, FlatList, Platform } from "react-native";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  View,
+  StyleSheet,
+  Modal,
+  FlatList,
+  Platform,
+  Dimensions,
+} from "react-native";
 import { Text } from "react-native-ui-lib";
 import { Feather } from "@expo/vector-icons";
 import { TouchableOpacity } from "react-native";
 
-import { IResponseProduct } from "@/types/product";
+import type { IResponseProduct } from "@/types/product";
 import ProductItem from "@/components/products/product-item";
 import SearchBar from "@/components/products/search-bar";
 import EmptyState from "@/components/products/empty-state";
@@ -18,10 +25,16 @@ import ModalFooter from "@/components/products/modal-footer";
 // First, import the useProducts hook at the top of the file
 import useProducts from "@/hooks/api/useProducts";
 
+const { width, height } = Dimensions.get("window");
+
+// Update the props interface to include a way to pass back full product objects
 interface ProductSelectionModalProps {
   visible: boolean;
   onClose: () => void;
-  onConfirm: (selectedIds: string[]) => void;
+  onConfirm: (
+    selectedIds: string[],
+    selectedProducts: IResponseProduct[]
+  ) => void;
   initialSelectedIds: string[];
 }
 
@@ -40,6 +53,12 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [totalItems, setTotalItems] = useState(0);
+
+  // Add a ref to track if this is the initial load
+  const isInitialLoadRef = useRef(true);
+  // Add a ref to track previous search query
+  const prevSearchQueryRef = useRef("");
 
   // Make sure to add getFilteredProducts to the component
   const { getFilteredProducts } = useProducts();
@@ -55,6 +74,10 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
           setLoadingMore(true);
         }
         setError(null);
+
+        console.log(
+          `Fetching products: query=${query}, page=${pageNum}, append=${append}`
+        );
 
         // Use the getFilteredProducts function from the hook
         const result = await getFilteredProducts({
@@ -75,8 +98,12 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
             setProducts(result.products);
           }
           setHasMore(result.hasMore);
-        } else {
-          throw new Error("Failed to fetch products");
+          setTotalItems(result.total);
+
+          // Log pagination info for debugging
+          console.log(
+            `Loaded page ${result.page} of ${result.totalPages}, total: ${result.total} items`
+          );
         }
       } catch (err) {
         console.error("Error fetching products:", err);
@@ -89,24 +116,40 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
     [getFilteredProducts]
   );
 
-  // Load initial products
+  // Combined effect for handling both initial load and search changes
   useEffect(() => {
-    if (visible) {
-      fetchProductsData(searchQuery, 1, false);
+    // Only fetch data if the modal is visible
+    if (!visible) {
+      return;
     }
-  }, [visible, fetchProductsData]);
 
-  // Handle search with debounce
-  useEffect(() => {
-    if (visible) {
+    // If this is the initial load when modal becomes visible
+    if (isInitialLoadRef.current && visible) {
+      isInitialLoadRef.current = false;
+      setPage(1);
+      fetchProductsData(searchQuery, 1, false);
+      prevSearchQueryRef.current = searchQuery;
+      return;
+    }
+
+    // For search query changes, use debounce
+    if (searchQuery !== prevSearchQueryRef.current) {
       const delayDebounceFn = setTimeout(() => {
         setPage(1);
         fetchProductsData(searchQuery, 1, false);
+        prevSearchQueryRef.current = searchQuery;
       }, 500);
 
       return () => clearTimeout(delayDebounceFn);
     }
   }, [searchQuery, visible, fetchProductsData]);
+
+  // Reset the initial load flag when modal closes
+  useEffect(() => {
+    if (!visible) {
+      isInitialLoadRef.current = true;
+    }
+  }, [visible]);
 
   // Handle product selection
   const toggleProductSelection = (productId: string) => {
@@ -133,9 +176,25 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
     setSearchQuery("");
   };
 
-  // Handle confirmation
+  // Update the handleConfirm function to ensure it properly passes data back
+  // Look for the handleConfirm function and replace it with this implementation:
+
   const handleConfirm = () => {
-    onConfirm(selectedProductIds);
+    // Get the full product objects for selected IDs
+    const selectedProductObjects = products.filter((product) =>
+      selectedProductIds.includes(product.id || "")
+    );
+
+    // Log what we're sending back for debugging
+    console.log(
+      `Confirming selection of ${selectedProductIds.length} products`
+    );
+
+    // Pass both IDs and full product objects back to the parent component
+    onConfirm(selectedProductIds, selectedProductObjects);
+
+    // Close the modal after confirming
+    onClose();
   };
 
   // Render footer with loading indicator
@@ -170,8 +229,9 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <View style={styles.content}>
+      <View style={styles.overlay}>
+        <View style={styles.modalContainer}>
+          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Select Products</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -179,42 +239,56 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <SearchBar
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onClear={clearSearch}
-          />
-
-          {error && (
-            <ErrorView
-              message={error}
-              onRetry={() => fetchProductsData(searchQuery, 1, false)}
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <SearchBar
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onClear={clearSearch}
+              placeholder="Search products..."
             />
-          )}
+          </View>
 
-          {loading ? (
-            <LoadingIndicator message="Loading products..." />
-          ) : (
-            <FlatList
-              data={products}
-              renderItem={({ item }) => (
-                <ProductItem
-                  product={item}
-                  isSelected={selectedProductIds.includes(item.id || "")}
-                  onSelect={toggleProductSelection}
+          {/* Content */}
+          <View style={styles.content}>
+            {error && (
+              <ErrorView
+                message={error}
+                onRetry={() => fetchProductsData(searchQuery, 1, false)}
+              />
+            )}
+
+            {loading ? (
+              <LoadingIndicator message="Loading products..." />
+            ) : (
+              <>
+                {totalItems > 0 && (
+                  <Text style={styles.resultsCount}>
+                    Showing {products.length} of {totalItems} products
+                  </Text>
+                )}
+                <FlatList
+                  data={products}
+                  renderItem={({ item }) => (
+                    <ProductItem
+                      product={item}
+                      isSelected={selectedProductIds.includes(item.id || "")}
+                      onSelect={toggleProductSelection}
+                    />
+                  )}
+                  keyExtractor={(item) => item.id || Math.random().toString()}
+                  contentContainerStyle={styles.listContent}
+                  showsVerticalScrollIndicator={false}
+                  ListEmptyComponent={renderEmpty}
+                  ListFooterComponent={renderFooter}
+                  onEndReached={handleLoadMore}
+                  onEndReachedThreshold={0.5}
                 />
-              )}
-              keyExtractor={(item) => item.id || Math.random().toString()}
-              style={styles.productList}
-              contentContainerStyle={styles.productListContent}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={renderEmpty}
-              ListFooterComponent={renderFooter}
-              onEndReached={handleLoadMore}
-              onEndReachedThreshold={0.5}
-            />
-          )}
+              </>
+            )}
+          </View>
 
+          {/* Footer */}
           <ModalFooter
             onCancel={onClose}
             onConfirm={handleConfirm}
@@ -227,15 +301,15 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
   },
-  content: {
-    width: "90%",
-    maxHeight: "80%",
+  modalContainer: {
+    width: width * 0.9,
+    maxHeight: height * 0.8,
     backgroundColor: "#fff",
     borderRadius: 12,
     overflow: "hidden",
@@ -267,12 +341,24 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 4,
   },
-  productList: {
-    flex: 1,
-  },
-  productListContent: {
+  searchContainer: {
     padding: 16,
-    paddingTop: 0,
+    paddingTop: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  content: {
+    backgroundColor: "#f8fafc",
+  },
+  listContent: {
+    padding: 16,
+  },
+  resultsCount: {
+    fontSize: 12,
+    color: "#64748b",
+    marginHorizontal: 16,
+    marginTop: 8,
   },
   footerLoader: {
     paddingVertical: 8,

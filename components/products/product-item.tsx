@@ -23,9 +23,21 @@ const ProductItem: React.FC<ProductItemProps> = ({
   isSelected,
   onSelect,
 }) => {
+  // Safety check - if product is undefined or null, render nothing
+  if (!product) {
+    console.error("ProductItem received undefined or null product");
+    return null;
+  }
+
+  // Get the product ID safely
+  const productId = product.id || "";
+
+  // Get the product name safely
+  const productName = product.name || "Unnamed Product";
+
   // Get the main image URL or a placeholder
   const imageUrl =
-    product.images && product.images.length > 0
+    product.images && product.images.length > 0 && product.images[0].fileUrl
       ? product.images[0].fileUrl
       : "https://via.placeholder.com/60";
 
@@ -34,8 +46,12 @@ const ProductItem: React.FC<ProductItemProps> = ({
     ? `$${product.price.toFixed(2)}`
     : "Price unavailable";
 
-  // Get the product ID safely
-  const productId = product.id || "";
+  // Get brand name safely
+  const brandName = product.brand?.name || "";
+
+  // Get stock information if available
+  const stockInfo =
+    product.quantity !== undefined ? `${product.quantity} in stock` : "";
 
   return (
     <TouchableOpacity
@@ -43,19 +59,37 @@ const ProductItem: React.FC<ProductItemProps> = ({
       onPress={() => onSelect(productId)}
       activeOpacity={0.7}
     >
-      <Image source={{ uri: imageUrl }} style={styles.image} />
-      <View style={styles.info}>
-        <Text style={styles.name}>{product.name}</Text>
-        <Text style={styles.price}>{formattedPrice}</Text>
-        {product.brand && (
-          <Text style={styles.brand}>{product.brand.name}</Text>
+      <View style={styles.imageContainer}>
+        <Image
+          source={{ uri: imageUrl }}
+          style={styles.image}
+          defaultSource={require("@/assets/images/fallBackImage.jpg")}
+        />
+        {isSelected && (
+          <View style={styles.selectedBadge}>
+            <Feather name="check" size={14} color="#fff" />
+          </View>
         )}
       </View>
-      {isSelected && (
-        <View style={styles.selectedIndicator}>
-          <Feather name="check" size={16} color="#fff" />
+
+      <View style={styles.contentContainer}>
+        <View style={styles.infoContainer}>
+          <Text numberOfLines={1} style={styles.name}>
+            {productName}
+          </Text>
+          {brandName && <Text style={styles.brand}>{brandName}</Text>}
         </View>
-      )}
+
+        {isSelected ? (
+          <View style={styles.selectedIndicator}>
+            <Text style={styles.selectedText}>Selected</Text>
+          </View>
+        ) : (
+          <View style={styles.selectButton}>
+            <Text style={styles.selectText}>Select</Text>
+          </View>
+        )}
+      </View>
     </TouchableOpacity>
   );
 };
@@ -67,57 +101,113 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 12,
     backgroundColor: "#fff",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
-        shadowRadius: 1,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 1,
+        elevation: 2,
       },
     }),
   },
   containerSelected: {
     borderColor: myTheme.primary,
     borderWidth: 2,
+    backgroundColor: "#fdf2f8",
+  },
+  imageContainer: {
+    position: "relative",
+    marginRight: 12,
   },
   image: {
-    width: 60,
-    height: 60,
-    borderRadius: 4,
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
   },
-  info: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  name: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#0f172a",
-    marginBottom: 4,
-  },
-  price: {
-    fontSize: 14,
-    color: "#64748b",
-    marginBottom: 2,
-  },
-  brand: {
-    fontSize: 12,
-    color: "#94a3b8",
-  },
-  selectedIndicator: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  selectedBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: myTheme.primary,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  contentContainer: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  infoContainer: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  name: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  brand: {
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 4,
+  },
+  detailsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  price: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: myTheme.primary,
+  },
+  stockContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  stockText: {
+    fontSize: 12,
+    color: "#64748b",
+    marginLeft: 4,
+  },
+  selectedIndicator: {
+    backgroundColor: myTheme.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
     marginLeft: 8,
+  },
+  selectedText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  selectButton: {
+    borderWidth: 1,
+    borderColor: myTheme.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginLeft: 8,
+  },
+  selectText: {
+    color: myTheme.primary,
+    fontSize: 12,
+    fontWeight: "600",
   },
 });
 
