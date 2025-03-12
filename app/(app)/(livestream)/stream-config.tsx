@@ -21,9 +21,9 @@ import { Card } from "react-native-ui-lib";
 
 // Mock data for testing - in a real app, this would come from your API
 const MOCK_TOKEN =
-  "006dfe198af16484697a18b52befb3f4f92IABgqRnww+TdJQNfHRL5NIrwvXJhA7ZkPiTOZq0Ht+2cGkDNIugAAAAAIgAWPQAAXm5kZQQAAQBeamRlAwBeamRlAgBeamRlBABeamRl";
-const MOCK_CHANNEL = "test-channel";
-const MOCK_USER_ID = 12345;
+  "007eJxTYJjxccK5H1cLT6jbt7M/k61+tjtkdsUzj5dGTIKPZJdff/VIgcHAIM00xcTY2Ng0Ockk0dDS0swyNc3cIinJwtLUNMUo+eKFi+kNgYwMm8W9mBgZIBDEZ2HIzczLYGAAACSeIjM=";
+const MOCK_CHANNEL = "minh";
+const MOCK_USER_ID = 432;
 
 export default function StreamConfigScreen() {
   const router = useRouter();

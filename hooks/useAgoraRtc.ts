@@ -9,7 +9,7 @@ import createAgoraRtcEngine, {
 } from "react-native-agora";
 
 //change this to your own Agora App ID
-const AGORA_APP_ID = "4c96e4edcb604c9f9874489abdc24058";
+const AGORA_APP_ID = "00f5d43335cb4a19969ef78bb8955d2c";
 
 export const useAgoraRtcEngine = (props: {
   userID: number;
@@ -174,7 +174,7 @@ export const useAgoraRtcEngine = (props: {
       console.error(error, "Failed to join Agora channel");
     }
   }, [rtcEngine, didJoinChannel, rtcEngineReady, props]);
-  console.log(rtcEngineReady);
+  console.log("lin 177", rtcEngineReady);
 
   return {
     rtcEngine,

@@ -16,8 +16,12 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from "react-native-reanimated";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { myTheme } from "@/constants/index";
+
+// Key for storing welcome banner preference
+const WELCOME_BANNER_KEY = "allure_welcome_banner_dismissed";
 
 export default function KOLHomePage() {
   const router = useRouter();
@@ -33,6 +37,22 @@ export default function KOLHomePage() {
       transform: [{ scale: buttonScale.value }],
     };
   });
+
+  // Check if welcome banner has been dismissed before
+  useEffect(() => {
+    const checkWelcomeBanner = async () => {
+      try {
+        const value = await AsyncStorage.getItem(WELCOME_BANNER_KEY);
+        if (value === "true") {
+          setIsFirstLogin(false);
+        }
+      } catch (error) {
+        console.error("Error reading welcome banner preference:", error);
+      }
+    };
+
+    checkWelcomeBanner();
+  }, []);
 
   // Simulate checking if user has any scheduled streams
   useEffect(() => {
@@ -54,9 +74,17 @@ export default function KOLHomePage() {
     router.push("/(app)/(tabs)/live");
   };
 
-  const dismissWelcome = () => {
+  const dismissWelcome = async () => {
+    console.log("reun");
+
     setIsFirstLogin(false);
-    // In a real app, you would save this preference to user settings
+
+    // Save preference to AsyncStorage
+    try {
+      await AsyncStorage.setItem(WELCOME_BANNER_KEY, "true");
+    } catch (error) {
+      console.error("Error saving welcome banner preference:", error);
+    }
   };
 
   if (loading) {
@@ -89,7 +117,7 @@ export default function KOLHomePage() {
             label="Take a quick tour"
             backgroundColor={myTheme.yellow}
             color="#fff"
-            onPress={() => router.push("/(app)/tutorial")}
+            onPress={() => router.push("/turtorial")}
             style={styles.tourButton}
           />
         </View>

@@ -107,7 +107,30 @@ function AppLayout() {
             headerShown: false,
           }}
         />
-
+        <Stack.Screen
+          name="(livestream)/stream-config"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(livestream)/stream-summary"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(livestream)/turtorial"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(livestream)/live-streamming"
+          options={{
+            headerShown: false,
+          }}
+        />
         <Stack.Screen
           name="(profile)/contact"
           options={{
