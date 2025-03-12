@@ -27,6 +27,10 @@ export const myTheme = {
   yellow: "#ff9f25",
   green: "#22c022",
   red: "#f76868",
+  textColor: "#0f172a",
+  textColorLight: "#697B7A",
+  borderColor: "#e5f7f7",
+  backgroundColor: "#f6faf9",
 };
 
 export const myDeviceHeight = {
