@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import {
   View,
   StyleSheet,
@@ -6,10 +7,12 @@ import {
   TouchableOpacity,
   Platform,
   Image,
+  FlatList,
+  RefreshControl,
 } from "react-native";
 import { Text, Card } from "react-native-ui-lib";
 import { useRouter } from "expo-router";
-import { Feather, MaterialIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -18,8 +21,41 @@ import Animated, {
 
 import { myTheme } from "@/constants/index";
 
+// Mock data for upcoming livestreams
+const MOCK_UPCOMING_STREAMS = [
+  {
+    id: "upcoming-1",
+    title: "New Skincare Collection Review",
+    scheduledStartTime: new Date(Date.now() + 2 * 60 * 60000).toISOString(), // Starts in 2 hours
+    scheduledEndTime: new Date(Date.now() + 3 * 60 * 60000).toISOString(), // Ends in 3 hours
+    thumbnail: "https://i.imgur.com/8BFQXnZ.jpg",
+    status: "scheduled",
+    products: 3,
+  },
+  {
+    id: "upcoming-2",
+    title: "Fashion Haul: Summer Collection",
+    scheduledStartTime: new Date(Date.now() + 24 * 60 * 60000).toISOString(), // Starts tomorrow
+    scheduledEndTime: new Date(Date.now() + 25 * 60 * 60000).toISOString(),
+    thumbnail: "https://i.imgur.com/Vd9VYT4.jpg",
+    status: "scheduled",
+    products: 8,
+  },
+  {
+    id: "upcoming-3",
+    title: "Q&A Session with Followers",
+    scheduledStartTime: new Date(Date.now() + 48 * 60 * 60000).toISOString(), // Starts in 2 days
+    scheduledEndTime: new Date(Date.now() + 49 * 60 * 60000).toISOString(),
+    thumbnail: null,
+    status: "scheduled",
+    products: 0,
+  },
+];
+
 export default function LiveScreen() {
   const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+  const [upcomingStreams, setUpcomingStreams] = useState(MOCK_UPCOMING_STREAMS);
 
   // Animation for the button
   const buttonScale = useSharedValue(1);
@@ -30,14 +66,123 @@ export default function LiveScreen() {
     };
   });
 
-  const handleButtonPress = () => {
+  // Handle refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    // In a real app, you would fetch updated data here
+    // await fetchUpcomingStreams()
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  // Format time for display
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  // Get relative time description
+  const getTimeDescription = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffMs = date.getTime() - now.getTime();
+    const diffMins = Math.round(diffMs / 60000);
+    const diffHours = Math.round(diffMs / 3600000);
+    const diffDays = Math.round(diffMs / 86400000);
+
+    if (diffMins < 60) return `Starts in ${diffMins} minutes`;
+    if (diffHours < 24) return `Starts in ${diffHours} hours`;
+    return `Starts in ${diffDays} days`;
+  };
+
+  const handleCreateLivestream = () => {
     buttonScale.value = withSpring(0.95, {}, () => {
       buttonScale.value = withSpring(1);
     });
-
-    // Navigate to livestream setup
     router.push("/(app)/(livestream)/create-livestream");
   };
+
+  const handleStartStream = (stream) => {
+    // Navigate to stream configuration screen with the stream data
+    router.push({
+      pathname: "/(app)/(livestream)/stream-config",
+      params: {
+        id: stream.id,
+        title: stream.title,
+      },
+    });
+  };
+
+  const renderUpcomingStream = ({ item }) => (
+    <Card style={styles.streamCard}>
+      <View style={styles.streamCardContent}>
+        {/* Thumbnail */}
+        <View style={styles.thumbnailContainer}>
+          {item.thumbnail ? (
+            <Image source={{ uri: item.thumbnail }} style={styles.thumbnail} />
+          ) : (
+            <View style={styles.placeholderThumbnail}>
+              <Feather name="video" size={24} color="#94a3b8" />
+            </View>
+          )}
+        </View>
+
+        {/* Stream Info */}
+        <View style={styles.streamInfo}>
+          <Text style={styles.streamTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+
+          <View style={styles.streamMetaRow}>
+            <Feather name="calendar" size={12} color="#64748b" />
+            <Text style={styles.streamMetaText}>
+              {formatDate(item.scheduledStartTime)}
+            </Text>
+          </View>
+
+          <View style={styles.streamMetaRow}>
+            <Feather name="clock" size={12} color="#64748b" />
+            <Text style={styles.streamMetaText}>
+              {formatTime(item.scheduledStartTime)}
+            </Text>
+          </View>
+
+          <View style={styles.streamMetaRow}>
+            <Feather name="package" size={12} color="#64748b" />
+            <Text style={styles.streamMetaText}>{item.products} products</Text>
+          </View>
+
+          <Text style={styles.timeUntilStart}>
+            {getTimeDescription(item.scheduledStartTime)}
+          </Text>
+        </View>
+
+        {/* Start Button */}
+        <TouchableOpacity
+          style={styles.startButton}
+          onPress={() => handleStartStream(item)}
+        >
+          <Feather name="video" size={20} color="#fff" />
+          <Text style={styles.startButtonText}>Start</Text>
+        </TouchableOpacity>
+      </View>
+    </Card>
+  );
 
   return (
     <View style={styles.container}>
@@ -61,139 +206,70 @@ export default function LiveScreen() {
       <ScrollView
         style={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[myTheme.primary]}
+            tintColor={myTheme.primary}
+          />
+        }
       >
-        <Card style={styles.welcomeCard}>
-          <View style={styles.welcomeContent}>
-            <Image
-              source={require("@/assets/images/no_avatar.png")}
-              style={styles.welcomeImage}
-              resizeMode="contain"
-            />
-            <Text style={styles.welcomeTitle}>Ready to Go Live?</Text>
-            <Text style={styles.welcomeText}>
-              Connect with your audience in real-time and showcase your products
-              to boost engagement and sales.
-            </Text>
-          </View>
-        </Card>
+        {/* Upcoming Streams Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Your Upcoming Livestreams</Text>
+          <TouchableOpacity onPress={handleCreateLivestream}>
+            <Text style={styles.seeAllText}>Create New</Text>
+          </TouchableOpacity>
+        </View>
 
-        <Text style={styles.sectionTitle}>Before You Start</Text>
-
-        <Card style={styles.guidelineCard}>
-          <View style={styles.guidelineItem}>
-            <View style={styles.guidelineIconContainer}>
-              <Feather name="wifi" size={20} color="#fff" />
-            </View>
-            <View style={styles.guidelineContent}>
-              <Text style={styles.guidelineTitle}>Stable Connection</Text>
-              <Text style={styles.guidelineText}>
-                Ensure you have a stable internet connection with at least 5Mbps
-                upload speed for best streaming quality.
+        {upcomingStreams.length > 0 ? (
+          <FlatList
+            data={upcomingStreams}
+            renderItem={renderUpcomingStream}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+          />
+        ) : (
+          <Card style={styles.emptyCard}>
+            <View style={styles.emptyContent}>
+              <Feather name="calendar" size={40} color="#94a3b8" />
+              <Text style={styles.emptyTitle}>No Upcoming Livestreams</Text>
+              <Text style={styles.emptyText}>
+                Schedule your next livestream to connect with your audience
               </Text>
             </View>
-          </View>
+          </Card>
+        )}
 
-          <View style={styles.guidelineItem}>
-            <View
-              style={[
-                styles.guidelineIconContainer,
-                { backgroundColor: "#f59e0b" },
-              ]}
+        {/* Quick Start Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Quick Start</Text>
+        </View>
+
+        <Card style={styles.quickStartCard}>
+          <View style={styles.quickStartContent}>
+            <View style={styles.quickStartIconContainer}>
+              <Feather name="zap" size={32} color={myTheme.primary} />
+            </View>
+            <Text style={styles.quickStartTitle}>
+              Start an Instant Livestream
+            </Text>
+            <Text style={styles.quickStartText}>
+              Go live immediately without scheduling. Perfect for spontaneous
+              sessions with your audience.
+            </Text>
+            <TouchableOpacity
+              style={styles.quickStartButton}
+              onPress={() => router.push("/(app)/(livestream)/stream-config")}
             >
-              <Feather name="sun" size={20} color="#fff" />
-            </View>
-            <View style={styles.guidelineContent}>
-              <Text style={styles.guidelineTitle}>Good Lighting</Text>
-              <Text style={styles.guidelineText}>
-                Set up in a well-lit area. Natural light is best, but ring
-                lights or soft lamps work great too.
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.guidelineItem}>
-            <View
-              style={[
-                styles.guidelineIconContainer,
-                { backgroundColor: "#10b981" },
-              ]}
-            >
-              <Feather name="mic" size={20} color="#fff" />
-            </View>
-            <View style={styles.guidelineContent}>
-              <Text style={styles.guidelineTitle}>Clear Audio</Text>
-              <Text style={styles.guidelineText}>
-                Test your microphone before going live. Reduce background noise
-                for better audience experience.
-              </Text>
-            </View>
+              <Feather name="video" size={20} color="#fff" />
+              <Text style={styles.quickStartButtonText}>Go Live Now</Text>
+            </TouchableOpacity>
           </View>
         </Card>
 
-        <Text style={styles.sectionTitle}>Community Guidelines</Text>
-
-        <Card style={styles.rulesCard}>
-          <View style={styles.ruleItem}>
-            <MaterialIcons
-              name="check-circle"
-              size={20}
-              color={myTheme.primary}
-              style={styles.ruleIcon}
-            />
-            <Text style={styles.ruleText}>
-              Be respectful and professional with your audience
-            </Text>
-          </View>
-
-          <View style={styles.ruleItem}>
-            <MaterialIcons
-              name="check-circle"
-              size={20}
-              color={myTheme.primary}
-              style={styles.ruleIcon}
-            />
-            <Text style={styles.ruleText}>
-              Only promote products that you have rights to sell
-            </Text>
-          </View>
-
-          <View style={styles.ruleItem}>
-            <MaterialIcons
-              name="check-circle"
-              size={20}
-              color={myTheme.primary}
-              style={styles.ruleIcon}
-            />
-            <Text style={styles.ruleText}>
-              Provide accurate information about your products
-            </Text>
-          </View>
-
-          <View style={styles.ruleItem}>
-            <MaterialIcons
-              name="check-circle"
-              size={20}
-              color={myTheme.primary}
-              style={styles.ruleIcon}
-            />
-            <Text style={styles.ruleText}>
-              Do not share inappropriate or offensive content
-            </Text>
-          </View>
-
-          <View style={styles.ruleItem}>
-            <MaterialIcons
-              name="check-circle"
-              size={20}
-              color={myTheme.primary}
-              style={styles.ruleIcon}
-            />
-            <Text style={styles.ruleText}>
-              Respect intellectual property and copyright laws
-            </Text>
-          </View>
-        </Card>
-
+        {/* Tips Section */}
         <Text style={styles.sectionTitle}>Tips for Success</Text>
 
         <Card style={styles.tipsCard}>
@@ -228,32 +304,21 @@ export default function LiveScreen() {
               </Text>
             </View>
           </View>
-
-          <View style={styles.tipItem}>
-            <Text style={styles.tipNumber}>04</Text>
-            <View style={styles.tipContent}>
-              <Text style={styles.tipTitle}>Be Authentic</Text>
-              <Text style={styles.tipText}>
-                Show your genuine personality and honest opinions about
-                products.
-              </Text>
-            </View>
-          </View>
         </Card>
 
         <Animated.View style={[styles.buttonContainer, buttonAnimStyle]}>
           <TouchableOpacity
-            style={styles.setupButton}
-            onPress={handleButtonPress}
+            style={styles.liveButton}
+            onPress={handleCreateLivestream}
             activeOpacity={0.8}
           >
             <Feather
-              name="video"
+              name="calendar"
               size={20}
               color="#fff"
               style={styles.buttonIcon}
             />
-            <Text style={styles.buttonText}>Set Up Your Livestream</Text>
+            <Text style={styles.liveButtonText}>Schedule New Livestream</Text>
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
@@ -328,33 +393,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flex: 1,
-    padding: 16,
+    paddingHorizontal: 16,
   },
-  welcomeCard: {
-    marginBottom: 24,
-    padding: 0,
-    overflow: "hidden",
-  },
-  welcomeContent: {
-    padding: 20,
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-  },
-  welcomeImage: {
-    width: 100,
-    height: 100,
-    marginBottom: 16,
-  },
-  welcomeTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 8,
-  },
-  welcomeText: {
-    fontSize: 14,
-    color: "#64748b",
-    textAlign: "center",
-    lineHeight: 20,
+    marginTop: 16,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 16,
@@ -363,56 +409,141 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginLeft: 4,
   },
-  guidelineCard: {
-    marginBottom: 24,
-    padding: 16,
+  seeAllText: {
+    fontSize: 14,
+    color: myTheme.primary,
+    fontWeight: "500",
   },
-  guidelineItem: {
+  streamCard: {
+    marginBottom: 12,
+    padding: 0,
+    overflow: "hidden",
+  },
+  streamCardContent: {
     flexDirection: "row",
-    marginBottom: 16,
-    alignItems: "flex-start",
+    padding: 12,
   },
-  guidelineIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: myTheme.primary,
+  thumbnailContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  thumbnail: {
+    width: "100%",
+    height: "100%",
+  },
+  placeholderThumbnail: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
   },
-  guidelineContent: {
+  streamInfo: {
     flex: 1,
+    marginLeft: 12,
+    justifyContent: "space-between",
   },
-  guidelineTitle: {
-    fontSize: 16,
+  streamTitle: {
+    fontSize: 14,
     fontWeight: "600",
     color: "#0f172a",
     marginBottom: 4,
   },
-  guidelineText: {
+  streamMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  streamMetaText: {
+    fontSize: 12,
+    color: "#64748b",
+    marginLeft: 4,
+  },
+  timeUntilStart: {
+    fontSize: 12,
+    color: myTheme.primary,
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  startButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignSelf: "center",
+    marginLeft: 8,
+  },
+  startButtonText: {
+    color: "#fff",
+    fontWeight: "500",
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  emptyCard: {
+    marginBottom: 24,
+    padding: 0,
+  },
+  emptyContent: {
+    padding: 24,
+    alignItems: "center",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#0f172a",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  emptyText: {
     fontSize: 14,
     color: "#64748b",
-    lineHeight: 20,
+    textAlign: "center",
   },
-  rulesCard: {
+  quickStartCard: {
     marginBottom: 24,
-    padding: 16,
+    padding: 0,
   },
-  ruleItem: {
-    flexDirection: "row",
-    marginBottom: 12,
-    alignItems: "flex-start",
+  quickStartContent: {
+    padding: 20,
+    alignItems: "center",
   },
-  ruleIcon: {
-    marginRight: 12,
-    marginTop: 2,
+  quickStartIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(99, 102, 241, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  ruleText: {
-    flex: 1,
+  quickStartTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 8,
+  },
+  quickStartText: {
     fontSize: 14,
-    color: "#334155",
-    lineHeight: 20,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  quickStartButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  quickStartButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    marginLeft: 8,
   },
   tipsCard: {
     marginBottom: 24,
@@ -448,7 +579,7 @@ const styles = StyleSheet.create({
     marginVertical: 16,
     marginBottom: 40,
   },
-  setupButton: {
+  liveButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -470,7 +601,7 @@ const styles = StyleSheet.create({
   buttonIcon: {
     marginRight: 8,
   },
-  buttonText: {
+  liveButtonText: {
     fontSize: 16,
     fontWeight: "bold",
     color: "#fff",
