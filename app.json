@@ -33,6 +33,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "a76c75ac-e336-4b9d-9bcf-b80918de7f5d"
+      }
+    },
+    "owner": "listkelvin"
   }
 }

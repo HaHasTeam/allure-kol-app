@@ -1,3 +1,5 @@
+import "expo-dev-client";
+
 import { myFontWeight } from "@/constants";
 import { SessionProvider } from "@/contexts/AuthContext";
 import QueryProvider from "@/provider/QueryProvider";
