@@ -1,10 +1,13 @@
+"use client";
+
 import { useState, useCallback, useRef, useEffect } from "react";
 import createAgoraRtcEngine, {
-  IRtcEngine,
-  RtcConnection,
-  RemoteVideoState,
-  RemoteAudioState,
+  type IRtcEngine,
+  type RtcConnection,
+  type RemoteVideoState,
+  type RemoteAudioState,
   ChannelProfileType,
+  ClientRoleType,
   ThreadPriorityType,
 } from "react-native-agora";
 
@@ -15,6 +18,7 @@ export const useAgoraRtcEngine = (props: {
   userID: number;
   channel: string;
   token: string;
+  roleType?: ClientRoleType;
 }) => {
   const [rtcEngine] = useState<IRtcEngine>(createAgoraRtcEngine());
   const [rtcEngineReady, setRtcEngineReady] = useState(false);
@@ -159,7 +163,11 @@ export const useAgoraRtcEngine = (props: {
         props.token,
         channel,
         props.userID,
-        {}
+        {
+          // Set the client role type, default to broadcaster if not provided
+          clientRoleType:
+            props.roleType || ClientRoleType.ClientRoleBroadcaster,
+        }
       );
 
       if (joinResult !== 0) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -11,10 +11,11 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
+  PermissionsAndroid,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
-import { RtcSurfaceView } from "react-native-agora";
+import { RtcSurfaceView, ClientRoleType } from "react-native-agora";
 import { useAgoraRtcEngine } from "@/hooks/useAgoraRtc";
 import { myTheme } from "@/constants/index";
 import { Card } from "react-native-ui-lib";
@@ -24,6 +25,43 @@ const MOCK_TOKEN =
   "007eJxTYJjxccK5H1cLT6jbt7M/k61+tjtkdsUzj5dGTIKPZJdff/VIgcHAIM00xcTY2Ng0Ockk0dDS0swyNc3cIinJwtLUNMUo+eKFi+kNgYwMm8W9mBgZIBDEZ2HIzczLYGAAACSeIjM=";
 const MOCK_CHANNEL = "minh";
 const MOCK_USER_ID = 432;
+
+const askMediaAccess = async () => {
+  if (Platform.OS === "android") {
+    try {
+      const granted = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      ]);
+
+      if (
+        granted[PermissionsAndroid.PERMISSIONS.CAMERA] ===
+          PermissionsAndroid.RESULTS.GRANTED &&
+        granted[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] ===
+          PermissionsAndroid.RESULTS.GRANTED
+      ) {
+        console.log("Camera and microphone permissions granted");
+        return true;
+      } else {
+        console.log("Camera and microphone permissions denied");
+        Alert.alert(
+          "Permissions Required",
+          "Camera and microphone permissions are required for livestreaming.",
+          [{ text: "OK" }]
+        );
+        return false;
+      }
+    } catch (err) {
+      console.warn(err);
+      return false;
+    }
+  } else if (Platform.OS === "ios") {
+    // iOS permissions are handled at the app level through Info.plist
+    // But we can still check and notify the user
+    return true;
+  }
+  return false;
+};
 
 export default function StreamConfigScreen() {
   const router = useRouter();
@@ -52,7 +90,28 @@ export default function StreamConfigScreen() {
     userID: MOCK_USER_ID,
     channel: MOCK_CHANNEL,
     token: MOCK_TOKEN,
+    roleType: ClientRoleType.ClientRoleBroadcaster, // Add this line
   });
+
+  useEffect(() => {
+    const initializeStream = async () => {
+      // Request permissions first
+      const hasPermissions = await askMediaAccess();
+
+      if (!hasPermissions) {
+        Alert.alert(
+          "Permission Denied",
+          "Camera and microphone access is required for livestreaming. Please enable permissions in your device settings.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
+      // Rest of your initialization code...
+    };
+
+    initializeStream();
+  }, []);
 
   // Handle camera toggle
   const toggleCamera = () => {
