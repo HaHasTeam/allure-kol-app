@@ -15,7 +15,7 @@ import createAgoraRtcEngine, {
 const AGORA_APP_ID = "00f5d43335cb4a19969ef78bb8955d2c";
 
 export const useAgoraRtcEngine = (props: {
-  userID: number;
+  userID: string;
   channel: string;
   token: string;
   roleType?: ClientRoleType;
@@ -23,7 +23,7 @@ export const useAgoraRtcEngine = (props: {
   const [rtcEngine] = useState<IRtcEngine>(createAgoraRtcEngine());
   const [rtcEngineReady, setRtcEngineReady] = useState(false);
   const [didJoinChannel, setDidJoinChannel] = useState(false);
-  const [remoteUserID, setRemoteUserID] = useState<number | null>(null);
+  const [remoteUserID, setRemoteUserID] = useState<string | null>(null);
   const [isRemoteAudioEnabled, setIsRemoteAudioEnabled] = useState(false);
   const [isRemoteVideoEnabled, setIsRemoteVideoEnabled] = useState(false);
 
@@ -35,14 +35,14 @@ export const useAgoraRtcEngine = (props: {
   const onLeaveChannel = useCallback(() => {
     console.log("onLeaveChannel");
     setDidJoinChannel(false);
-    setRemoteUserID(0);
+    setRemoteUserID("0");
   }, []);
 
   const onUserJoined = useCallback(
     (_connection: RtcConnection, remoteUid: number) => {
       console.log("onUserJoined");
-      if (Number(remoteUid) > 0) {
-        setRemoteUserID(Number(remoteUid));
+      if (remoteUid) {
+        setRemoteUserID(remoteUid.toString());
       }
     },
     []
@@ -96,7 +96,7 @@ export const useAgoraRtcEngine = (props: {
     try {
       rtcEngine.initialize({
         appId: AGORA_APP_ID,
-        channelProfile: ChannelProfileType.ChannelProfileCommunication,
+        channelProfile: ChannelProfileType.ChannelProfileLiveBroadcasting,
         threadPriority: ThreadPriorityType.Normal,
       });
 
@@ -148,10 +148,10 @@ export const useAgoraRtcEngine = (props: {
       return;
     }
 
-    console.log(444);
-
     try {
       const channel = props.channel;
+      console.log("153: ", props.userID);
+
       console.log(`Joining channel '${channel}' with userUID ${props.userID}`);
 
       rtcEngine.enableAudio();
@@ -159,7 +159,7 @@ export const useAgoraRtcEngine = (props: {
       rtcEngine.muteLocalVideoStream(false);
       rtcEngine.muteLocalAudioStream(false);
 
-      const joinResult = rtcEngine.joinChannel(
+      const joinResult = rtcEngine.joinChannelWithUserAccount(
         props.token,
         channel,
         props.userID,
@@ -182,7 +182,6 @@ export const useAgoraRtcEngine = (props: {
       console.error(error, "Failed to join Agora channel");
     }
   }, [rtcEngine, didJoinChannel, rtcEngineReady, props]);
-  console.log("lin 177", rtcEngineReady);
 
   return {
     rtcEngine,

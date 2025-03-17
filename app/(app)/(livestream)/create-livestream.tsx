@@ -1,5 +1,3 @@
-"use client";
-
 import type React from "react";
 
 import { useState, useEffect } from "react";
@@ -24,8 +22,9 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { myTheme } from "@/constants/index";
 import ProductSelectionModal from "@/components/modals/product-selection-modal";
-import { IResponseProduct } from "@/types/product";
+import type { IResponseProduct } from "@/types/product";
 import useLivestreams from "@/hooks/api/useLivestreams";
+import useUser from "@/hooks/api/useUser";
 
 const uploadFile = async (fileUri: string): Promise<string | null> => {
   try {
@@ -84,11 +83,6 @@ const RequiredLabel = ({ children }: { children: React.ReactNode }) => (
   </Text>
 );
 
-const MOCK_ACCOUNT = {
-  id: "8e0d14c6-e5c6-42fa-9d0f-9ad59eef1935",
-  name: "KOL Account",
-};
-
 type FormData = {
   title: string;
   startTime: Date;
@@ -100,6 +94,7 @@ type FormData = {
 
 export default function CreateLivestreamScreen() {
   const router = useRouter();
+  const { getProfile } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
@@ -111,6 +106,9 @@ export default function CreateLivestreamScreen() {
   >([]);
   const [thumbnailImage, setThumbnailImage] = useState<string | null>(null);
   const [thumbnailError, setThumbnailError] = useState<string | null>(null);
+  const [account, setAccount] = useState<{ id: string; name: string } | null>(
+    null
+  );
 
   // Product selection modal state
   const [productModalVisible, setProductModalVisible] = useState(false);
@@ -118,6 +116,27 @@ export default function CreateLivestreamScreen() {
   // Calculate minimum allowed start time (4 hours from now)
   const minStartTime = new Date();
   minStartTime.setHours(minStartTime.getHours() + 4);
+
+  // Fetch user profile data when component mounts
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const data = await getProfile();
+        if (data && data.id) {
+          setAccount({
+            id: data.id,
+            name: data.email || "My Account",
+          });
+          setValue("account", data.id);
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        Alert.alert("Error", "Failed to load account information");
+      }
+    }
+
+    fetchProfile();
+  }, [getProfile]);
 
   const {
     control,
@@ -132,7 +151,7 @@ export default function CreateLivestreamScreen() {
       startTime: new Date(
         Math.max(new Date().getTime(), minStartTime.getTime())
       ),
-      account: MOCK_ACCOUNT.id,
+      account: "",
       products: [],
     },
   });
@@ -232,13 +251,11 @@ export default function CreateLivestreamScreen() {
   };
 
   // Add this near the top of the component with other state variables
-  const {
-    createLivestream,
-    isLoading: isApiLoading,
-    error: apiError,
-  } = useLivestreams();
+  const { createLivestream } = useLivestreams();
 
-  // Replace the onSubmit function with this implementation
+  // Replace the onSubmit function with this updated implementation
+  // that doesn't show a separate alert for image uploading
+
   const onSubmit = async (data: FormData) => {
     // Final validation checks
     if (!data.endTime) {
@@ -259,15 +276,7 @@ export default function CreateLivestreamScreen() {
       if (thumbnailImage) {
         setThumbnailError(null);
 
-        // Show uploading status
-        Alert.alert(
-          "Uploading",
-          "Uploading thumbnail image...",
-          [{ text: "OK" }],
-          { cancelable: false }
-        );
-
-        // Upload the thumbnail
+        // Upload the thumbnail without showing a separate alert
         const uploadedFileUrl = await uploadFile(thumbnailImage);
 
         if (!uploadedFileUrl) {
@@ -306,7 +315,7 @@ export default function CreateLivestreamScreen() {
         );
       } else {
         // The error will be handled by the hook and stored in apiError
-        throw new Error(apiError || "Failed to create livestream");
+        throw new Error("Failed to create livestream");
       }
     } catch (error) {
       console.error("Error creating livestream:", error);
@@ -760,15 +769,13 @@ export default function CreateLivestreamScreen() {
         <TouchableOpacity
           style={[
             styles.submitButton,
-            (isSubmitting || isApiLoading || selectedProducts.length === 0) &&
+            (isSubmitting || selectedProducts.length === 0) &&
               styles.submitButtonDisabled,
           ]}
           onPress={handleSubmit(onSubmit)}
-          disabled={
-            isSubmitting || isApiLoading || selectedProducts.length === 0
-          }
+          disabled={isSubmitting || selectedProducts.length === 0}
         >
-          {isSubmitting || isApiLoading ? (
+          {isSubmitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <>

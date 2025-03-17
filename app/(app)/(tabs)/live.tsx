@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -9,6 +9,7 @@ import {
   Image,
   FlatList,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { Text, Card } from "react-native-ui-lib";
 import { useRouter } from "expo-router";
@@ -20,42 +21,18 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { myTheme } from "@/constants/index";
+import useLivestreams, { LivestreamResponse } from "@/hooks/api/useLivestreams";
 
-// Mock data for upcoming livestreams
-const MOCK_UPCOMING_STREAMS = [
-  {
-    id: "upcoming-1",
-    title: "New Skincare Collection Review",
-    scheduledStartTime: new Date(Date.now() + 2 * 60 * 60000).toISOString(), // Starts in 2 hours
-    scheduledEndTime: new Date(Date.now() + 3 * 60 * 60000).toISOString(), // Ends in 3 hours
-    thumbnail: "https://i.imgur.com/8BFQXnZ.jpg",
-    status: "scheduled",
-    products: 3,
-  },
-  {
-    id: "upcoming-2",
-    title: "Fashion Haul: Summer Collection",
-    scheduledStartTime: new Date(Date.now() + 24 * 60 * 60000).toISOString(), // Starts tomorrow
-    scheduledEndTime: new Date(Date.now() + 25 * 60 * 60000).toISOString(),
-    thumbnail: "https://i.imgur.com/Vd9VYT4.jpg",
-    status: "scheduled",
-    products: 8,
-  },
-  {
-    id: "upcoming-3",
-    title: "Q&A Session with Followers",
-    scheduledStartTime: new Date(Date.now() + 48 * 60 * 60000).toISOString(), // Starts in 2 days
-    scheduledEndTime: new Date(Date.now() + 49 * 60 * 60000).toISOString(),
-    thumbnail: null,
-    status: "scheduled",
-    products: 0,
-  },
-];
+// Updated interface to match the actual API response
 
 export default function LiveScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-  const [upcomingStreams, setUpcomingStreams] = useState(MOCK_UPCOMING_STREAMS);
+  const [loading, setLoading] = useState(true);
+  const [upcomingStreams, setUpcomingStreams] = useState<LivestreamResponse[]>(
+    []
+  );
+  const { getLivestreams } = useLivestreams();
 
   // Animation for the button
   const buttonScale = useSharedValue(1);
@@ -66,14 +43,43 @@ export default function LiveScreen() {
     };
   });
 
+  // Fetch upcoming livestreams
+  const fetchUpcomingStreams = useCallback(async () => {
+    try {
+      const result = await getLivestreams({
+        // status: "SCHEDULED", // Updated to match the actual API status value (uppercase)
+        // sortBy: "startTime",
+        // order: "ASC",
+        // limit: 10,
+      });
+
+      if (result) {
+        // Handle the actual API response structure
+        // This assumes the response is directly an array of livestreams
+        // Adjust this based on the actual structure returned by your hook
+        const livestreams = Array.isArray(result)
+          ? result
+          : result.data.data || [];
+
+        setUpcomingStreams(livestreams);
+      }
+    } catch (error) {
+      console.error("Error fetching upcoming livestreams:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [getLivestreams]);
+
+  // Load livestreams on component mount
+  useEffect(() => {
+    fetchUpcomingStreams();
+  }, [fetchUpcomingStreams]);
+
   // Handle refresh
   const onRefresh = async () => {
     setRefreshing(true);
-    // In a real app, you would fetch updated data here
-    // await fetchUpcomingStreams()
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    await fetchUpcomingStreams();
   };
 
   // Format date for display
@@ -117,7 +123,7 @@ export default function LiveScreen() {
     router.push("/(app)/(livestream)/create-livestream");
   };
 
-  const handleStartStream = (stream) => {
+  const handleStartStream = (stream: LivestreamResponse) => {
     // Navigate to stream configuration screen with the stream data
     router.push({
       pathname: "/(app)/(livestream)/stream-config",
@@ -128,7 +134,7 @@ export default function LiveScreen() {
     });
   };
 
-  const renderUpcomingStream = ({ item }) => (
+  const renderUpcomingStream = ({ item }: { item: LivestreamResponse }) => (
     <Card style={styles.streamCard}>
       <View style={styles.streamCardContent}>
         {/* Thumbnail */}
@@ -151,24 +157,26 @@ export default function LiveScreen() {
           <View style={styles.streamMetaRow}>
             <Feather name="calendar" size={12} color="#64748b" />
             <Text style={styles.streamMetaText}>
-              {formatDate(item.scheduledStartTime)}
+              {formatDate(item.startTime)}
             </Text>
           </View>
 
           <View style={styles.streamMetaRow}>
             <Feather name="clock" size={12} color="#64748b" />
             <Text style={styles.streamMetaText}>
-              {formatTime(item.scheduledStartTime)}
+              {formatTime(item.startTime)}
             </Text>
           </View>
 
           <View style={styles.streamMetaRow}>
-            <Feather name="package" size={12} color="#64748b" />
-            <Text style={styles.streamMetaText}>{item.products} products</Text>
+            <Feather name="clock" size={12} color="#64748b" />
+            <Text style={styles.streamMetaText}>
+              Duration: {calculateDuration(item.startTime, item.endTime)}
+            </Text>
           </View>
 
           <Text style={styles.timeUntilStart}>
-            {getTimeDescription(item.scheduledStartTime)}
+            {getTimeDescription(item.startTime)}
           </Text>
         </View>
 
@@ -183,6 +191,57 @@ export default function LiveScreen() {
       </View>
     </Card>
   );
+
+  // Calculate duration between start and end time
+  const calculateDuration = (startTime: string, endTime: string) => {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const durationMs = end.getTime() - start.getTime();
+
+    const hours = Math.floor(durationMs / (1000 * 60 * 60));
+    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
+  const renderUpcomingStreamsContent = () => {
+    if (loading) {
+      return (
+        <Card style={styles.loadingCard}>
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color={myTheme.primary} />
+            <Text style={styles.loadingText}>Loading livestreams...</Text>
+          </View>
+        </Card>
+      );
+    }
+
+    if (upcomingStreams.length === 0) {
+      return (
+        <Card style={styles.emptyCard}>
+          <View style={styles.emptyContent}>
+            <Feather name="calendar" size={40} color="#94a3b8" />
+            <Text style={styles.emptyTitle}>No Upcoming Livestreams</Text>
+            <Text style={styles.emptyText}>
+              Schedule your next livestream to connect with your audience
+            </Text>
+          </View>
+        </Card>
+      );
+    }
+
+    return (
+      <FlatList
+        data={upcomingStreams}
+        renderItem={renderUpcomingStream}
+        keyExtractor={(item) => item.id}
+        scrollEnabled={false}
+      />
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -223,24 +282,7 @@ export default function LiveScreen() {
           </TouchableOpacity>
         </View>
 
-        {upcomingStreams.length > 0 ? (
-          <FlatList
-            data={upcomingStreams}
-            renderItem={renderUpcomingStream}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-          />
-        ) : (
-          <Card style={styles.emptyCard}>
-            <View style={styles.emptyContent}>
-              <Feather name="calendar" size={40} color="#94a3b8" />
-              <Text style={styles.emptyTitle}>No Upcoming Livestreams</Text>
-              <Text style={styles.emptyText}>
-                Schedule your next livestream to connect with your audience
-              </Text>
-            </View>
-          </Card>
-        )}
+        {renderUpcomingStreamsContent()}
 
         {/* Quick Start Section */}
         <View style={styles.sectionHeader}>
@@ -482,6 +524,19 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 12,
     marginLeft: 4,
+  },
+  loadingCard: {
+    marginBottom: 24,
+    padding: 0,
+  },
+  loadingContent: {
+    padding: 24,
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#64748b",
+    marginTop: 12,
   },
   emptyCard: {
     marginBottom: 24,

@@ -1,4 +1,4 @@
-import "expo-dev-client";
+// import "expo-dev-client";
 
 import { myFontWeight } from "@/constants";
 import { SessionProvider } from "@/contexts/AuthContext";
@@ -7,8 +7,13 @@ import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 import { Header, HeaderBackButton } from "@react-navigation/elements";
 import { SplashScreen, Stack, useRouter } from "expo-router";
 import { useEffect } from "react";
-import { Appearance, Platform, StatusBar, StyleSheet } from "react-native";
-import { View } from "react-native-ui-lib";
+import {
+  Appearance,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  View,
+} from "react-native";
 import * as Linking from "expo-linking";
 import { ToastProvider } from "@/contexts/ToastContext";
 // import { SessionProvider } from "@/contexts/AuthContext";
@@ -45,10 +50,7 @@ export default function Root() {
 
   return (
     <ActionSheetProvider>
-      <View
-        useSafeArea={Platform.OS === "ios" || Platform.OS === "android"}
-        style={styles.container}
-      >
+      <View style={styles.container}>
         <StatusBar
           translucent={false}
           backgroundColor={

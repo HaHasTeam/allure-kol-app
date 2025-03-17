@@ -83,12 +83,15 @@ export function SessionProvider({ children }: PropsWithChildren) {
       value={{
         login: async (email, password) => {
           try {
+            console.log("email:", email, password);
+
             const { data: res } = await POST(
               "/auth/login",
               { email, password },
               {},
               {}
             );
+            console.log("check response");
 
             setAccessToken(res.data?.accessToken);
             setRefreshToken(res.data?.refreshToken);

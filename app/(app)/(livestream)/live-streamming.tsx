@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -17,7 +17,7 @@ import {
 import type { FlatList as FlatListType } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { RtcSurfaceView } from "react-native-agora";
+import { RtcSurfaceView, ClientRoleType } from "react-native-agora";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -26,7 +26,11 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { myTheme } from "@/constants/index";
-import { useAgoraRtcEngine } from "@/hooks/useAgoraRtc";
+import { useStreamPreparation } from "@/hooks/useStreamPreparation";
+import { refreshAgoraToken } from "@/utils/token-refresh";
+import useLivestreams from "@/hooks/api/useLivestreams";
+import { log } from "@/utils/logger";
+import config from "@/constants/agora.config";
 
 const { width, height } = Dimensions.get("window");
 
@@ -69,17 +73,24 @@ const MOCK_MESSAGES = [
   },
 ];
 
+// Token refresh interval in milliseconds (refresh every 30 minutes)
+const TOKEN_REFRESH_INTERVAL = 30 * 60 * 1000;
+
 export default function LiveStreamingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const [isMicEnabled, setIsMicEnabled] = useState(true);
-  const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [messages, setMessages] = useState(MOCK_MESSAGES);
   const [newMessage, setNewMessage] = useState("");
   const [viewerCount, setViewerCount] = useState(0);
   const [streamDuration, setStreamDuration] = useState(0);
   const [isEndingStream, setIsEndingStream] = useState(false);
+  const [currentToken, setCurrentToken] = useState<string | null>(
+    params.token as string
+  );
+  const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [tokenError, setTokenError] = useState(false);
+
   const chatListRef = useRef<
     FlatListType<{
       id: string;
@@ -100,15 +111,153 @@ export default function LiveStreamingScreen() {
   const livestreamId = params.id as string;
   const streamTitle = params.title as string;
   const channel = params.channel as string;
-  const token = params.token as string;
-  const userId = Number.parseInt(params.userId as string, 10);
+  const userId = params.userId as string;
+  const { getLivestreamToken } = useLivestreams();
 
-  // Initialize Agora engine
-  const { rtcEngine, rtcEngineReady, didJoinChannel } = useAgoraRtcEngine({
-    userID: userId,
+  // Token refresh timer
+  const tokenRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize Agora engine with our improved hook
+  const {
+    engine,
+    isInitialized,
+    joinChannelSuccess,
+    isMicEnabled,
+    isCameraEnabled,
+    toggleMicrophone,
+    toggleCamera,
+    switchCamera,
+    joinChannel,
+    leaveChannel,
+  } = useStreamPreparation({
+    appId: config.appId, // Replace with your Agora App ID
     channel: channel,
-    token: token,
+    token: currentToken,
+    userId: userId,
+    enableVideo: true,
+    autoJoin: true, // Auto join for the live screen
   });
+
+  // Function to refresh the token
+  const handleTokenRefresh = useCallback(async () => {
+    console.log("newToken");
+
+    setIsRefreshingToken(true);
+    setTokenError(false);
+
+    try {
+      const newToken = await refreshAgoraToken(
+        livestreamId,
+        ClientRoleType.ClientRoleBroadcaster,
+        3600,
+        getLivestreamToken
+      );
+      console.log("newToken", newToken);
+
+      if (newToken) {
+        log.info("Successfully refreshed token");
+        setCurrentToken(newToken);
+
+        // If we're already connected, we need to renew the token in the engine
+        if (isInitialized && engine) {
+          const res = engine.renewToken(newToken);
+          log.info("Token renewed in Agora engine", res);
+        } else if (isInitialized && !joinChannelSuccess) {
+          // If we're initialized but not connected, try to join with the new token
+          joinChannel();
+        }
+      } else {
+        log.error("Failed to refresh token");
+        setTokenError(true);
+        Alert.alert(
+          "Token Error",
+          "Failed to refresh streaming token. The stream may end soon.",
+          [{ text: "OK" }]
+        );
+      }
+    } catch (error) {
+      log.error("Error in token refresh:", error);
+      setTokenError(true);
+    } finally {
+      setIsRefreshingToken(false);
+    }
+  }, [
+    isRefreshingToken,
+    livestreamId,
+    getLivestreamToken,
+    isInitialized,
+    engine,
+    joinChannelSuccess,
+    joinChannel,
+  ]);
+
+  // Add this after the handleTokenRefresh function
+
+  /**
+   * Proactively refresh the token before it expires
+   * Agora tokens typically expire after the time specified when generating them (default 3600 seconds)
+   * We'll refresh 5 minutes before expiration to be safe
+   */
+  const setupTokenRefreshSchedule = useCallback(() => {
+    // Clear any existing refresh timer
+    if (tokenRefreshTimerRef.current) {
+      clearInterval(tokenRefreshTimerRef.current);
+    }
+
+    // Set up a new refresh timer - refresh every 55 minutes (if token expiration is 60 minutes)
+    // This gives a 5-minute buffer before the token actually expires
+    const REFRESH_INTERVAL = 55 * 60 * 1000; // 55 minutes in milliseconds
+
+    tokenRefreshTimerRef.current = setInterval(() => {
+      log.info("Proactively refreshing token before expiration");
+      handleTokenRefresh();
+    }, REFRESH_INTERVAL);
+
+    return () => {
+      if (tokenRefreshTimerRef.current) {
+        clearInterval(tokenRefreshTimerRef.current);
+      }
+    };
+  }, [handleTokenRefresh]);
+
+  // Set up token refresh interval
+  useEffect(() => {
+    // Initial token refresh timer
+    tokenRefreshTimerRef.current = setInterval(
+      handleTokenRefresh,
+      TOKEN_REFRESH_INTERVAL
+    );
+
+    return () => {
+      if (tokenRefreshTimerRef.current) {
+        clearInterval(tokenRefreshTimerRef.current);
+      }
+    };
+  }, [handleTokenRefresh]);
+
+  // Handle token errors from Agora
+  useEffect(() => {
+    if (isInitialized && engine) {
+      const handleError = (errorCode: number, msg: string) => {
+        log.error(`Agora error: ${errorCode}, ${msg}`);
+
+        // Error codes related to token expiration
+        // 109: token expired
+        // 110: token invalid
+        if (errorCode == 109 || errorCode == 110) {
+          log.warn("Token expired or invalid, refreshing...");
+          handleTokenRefresh();
+        }
+      };
+
+      // Add error listener
+      engine.addListener("onError", handleError);
+
+      return () => {
+        engine.removeListener("onError", handleError);
+      };
+    }
+  }, [isInitialized, engine, handleTokenRefresh]);
 
   // Timer for stream duration
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -128,18 +277,22 @@ export default function LiveStreamingScreen() {
     }, 5000);
   };
 
+  // Update the useEffect that sets up timers to include the token refresh schedule
   useEffect(() => {
     // Start timer for stream duration
     timerRef.current = setInterval(() => {
       setStreamDuration((prev) => prev + 1);
     }, 1000);
 
+    // Set up token refresh schedule
+    const cleanupTokenRefresh = setupTokenRefreshSchedule();
+
     // Simulate increasing viewer count
-    const viewerInterval = setInterval(() => {
-      setViewerCount((prev) =>
-        Math.min(prev + Math.floor(Math.random() * 3), 9999)
-      );
-    }, 5000);
+    // const viewerInterval = setInterval(() => {
+    //   setViewerCount((prev) =>
+    //     Math.min(prev + Math.floor(Math.random() * 3), 9999)
+    //   );
+    // }, 5000);
 
     // Set initial viewer count
     setViewerCount(Math.floor(Math.random() * 50) + 10);
@@ -155,51 +308,51 @@ export default function LiveStreamingScreen() {
     );
 
     // Initialize controls timer
-    resetControlsTimer();
+    // resetControlsTimer();
 
-    // Simulate new messages coming in
-    const messageInterval = setInterval(() => {
-      const randomMessages = [
-        "This product looks amazing!",
-        "How long does it last?",
-        "What's the price?",
-        "Love your makeup today!",
-        "Is it available in other colors?",
-        "When will you restock?",
-        "Does it work for oily skin?",
-        "You're so talented!",
-        "❤️❤️❤️",
-        "👏👏👏",
-      ];
+    // // Simulate new messages coming in
+    // const messageInterval = setInterval(() => {
+    //   const randomMessages = [
+    //     "This product looks amazing!",
+    //     "How long does it last?",
+    //     "What's the price?",
+    //     "Love your makeup today!",
+    //     "Is it available in other colors?",
+    //     "When will you restock?",
+    //     "Does it work for oily skin?",
+    //     "You're so talented!",
+    //     "❤️❤️❤️",
+    //     "👏👏👏",
+    //   ];
 
-      const randomUsers = [
-        { name: "Sarah", avatar: "SJ" },
-        { name: "David", avatar: "DK" },
-        { name: "Jessica", avatar: "JL" },
-        { name: "Kevin", avatar: "KW" },
-        { name: "Olivia", avatar: "OP" },
-      ];
+    //   const randomUsers = [
+    //     { name: "Sarah", avatar: "SJ" },
+    //     { name: "David", avatar: "DK" },
+    //     { name: "Jessica", avatar: "JL" },
+    //     { name: "Kevin", avatar: "KW" },
+    //     { name: "Olivia", avatar: "OP" },
+    //   ];
 
-      const randomUser =
-        randomUsers[Math.floor(Math.random() * randomUsers.length)];
-      const randomMessage =
-        randomMessages[Math.floor(Math.random() * randomMessages.length)];
+    //   const randomUser =
+    //     randomUsers[Math.floor(Math.random() * randomUsers.length)];
+    //   const randomMessage =
+    //     randomMessages[Math.floor(Math.random() * randomMessages.length)];
 
-      const newMsg = {
-        id: Date.now().toString(),
-        user: randomUser.name,
-        message: randomMessage,
-        avatar: randomUser.avatar,
-        timestamp: Date.now(),
-      };
+    //   const newMsg = {
+    //     id: Date.now().toString(),
+    //     user: randomUser.name,
+    //     message: randomMessage,
+    //     avatar: randomUser.avatar,
+    //     timestamp: Date.now(),
+    //   };
 
-      setMessages((prev) => [...prev, newMsg]);
+    //   setMessages((prev) => [...prev, newMsg]);
 
-      // Scroll to bottom
-      if (chatListRef.current) {
-        chatListRef.current?.scrollToEnd({ animated: true });
-      }
-    }, 8000);
+    //   // Scroll to bottom
+    //   if (chatListRef.current) {
+    //     chatListRef.current?.scrollToEnd({ animated: true });
+    //   }
+    // }, 8000);
 
     return () => {
       if (timerRef.current) {
@@ -208,37 +361,12 @@ export default function LiveStreamingScreen() {
       if (controlsTimerRef.current) {
         clearTimeout(controlsTimerRef.current);
       }
-      clearInterval(viewerInterval);
-      clearInterval(messageInterval);
+      cleanupTokenRefresh();
+      // clearInterval(viewerInterval);
+      // clearInterval(messageInterval);
       backHandler.remove();
     };
-  }, []);
-
-  // Handle camera toggle
-  const toggleCamera = () => {
-    if (!rtcEngineReady) return;
-
-    if (isCameraEnabled) {
-      rtcEngine.muteLocalVideoStream(true);
-    } else {
-      rtcEngine.muteLocalVideoStream(false);
-    }
-    setIsCameraEnabled(!isCameraEnabled);
-    resetControlsTimer();
-  };
-
-  // Handle microphone toggle
-  const toggleMic = () => {
-    if (!rtcEngineReady) return;
-
-    if (isMicEnabled) {
-      rtcEngine.muteLocalAudioStream(true);
-    } else {
-      rtcEngine.muteLocalAudioStream(false);
-    }
-    setIsMicEnabled(!isMicEnabled);
-    resetControlsTimer();
-  };
+  }, [setupTokenRefreshSchedule]);
 
   // Toggle chat visibility
   const toggleChat = () => {
@@ -323,8 +451,8 @@ export default function LiveStreamingScreen() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Clean up Agora connection
-      if (rtcEngineReady) {
-        rtcEngine.leaveChannel();
+      if (isInitialized) {
+        leaveChannel();
       }
 
       // Navigate to stream summary
@@ -373,13 +501,18 @@ export default function LiveStreamingScreen() {
     fabScale.value = withSpring(1);
   };
 
+  // Manual token refresh button handler
+  const onManualTokenRefresh = () => {
+    handleTokenRefresh();
+  };
+
   return (
     <View style={styles.container} onTouchStart={resetControlsTimer}>
       <StatusBar hidden />
 
       {/* Video Stream */}
       <View style={styles.videoContainer}>
-        {rtcEngineReady && didJoinChannel ? (
+        {isInitialized && !tokenError ? (
           isCameraEnabled ? (
             <RtcSurfaceView style={styles.videoView} canvas={{ uid: 0 }} />
           ) : (
@@ -390,7 +523,22 @@ export default function LiveStreamingScreen() {
           )
         ) : (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Connecting to stream...</Text>
+            <Text style={styles.loadingText}>
+              {tokenError
+                ? "Token error. Tap to refresh."
+                : isRefreshingToken
+                ? "Refreshing token..."
+                : "Connecting to stream..."}
+            </Text>
+            {tokenError && (
+              <TouchableOpacity
+                style={styles.refreshButton}
+                onPress={onManualTokenRefresh}
+                disabled={isRefreshingToken}
+              >
+                <Text style={styles.refreshButtonText}>Refresh Token</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
@@ -457,7 +605,8 @@ export default function LiveStreamingScreen() {
                 styles.controlButton,
                 !isMicEnabled && styles.controlButtonActive,
               ]}
-              onPress={toggleMic}
+              onPress={toggleMicrophone}
+              disabled={!isInitialized}
             >
               <Feather
                 name={isMicEnabled ? "mic" : "mic-off"}
@@ -472,12 +621,21 @@ export default function LiveStreamingScreen() {
                 !isCameraEnabled && styles.controlButtonActive,
               ]}
               onPress={toggleCamera}
+              disabled={!isInitialized}
             >
               <Feather
                 name={isCameraEnabled ? "video" : "video-off"}
                 size={22}
                 color="#fff"
               />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.controlButton}
+              onPress={switchCamera}
+              disabled={!isInitialized || !isCameraEnabled}
+            >
+              <Feather name="refresh-cw" size={22} color="#fff" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -591,6 +749,18 @@ const styles = StyleSheet.create({
   loadingText: {
     color: "#94a3b8",
     fontSize: 16,
+    marginBottom: 16,
+  },
+  refreshButton: {
+    backgroundColor: myTheme.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  refreshButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
   },
   overlayControls: {
     ...StyleSheet.absoluteFillObject,
