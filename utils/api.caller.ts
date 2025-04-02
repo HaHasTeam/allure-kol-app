@@ -6,7 +6,7 @@ import axios, {
 } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
-import { getItem } from "./asyncStorage";
+import { jwtDecode } from "jwt-decode";
 
 // Create a custom axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -20,16 +20,95 @@ const apiClient: AxiosInstance = axios.create({
 export const ACCESS_TOKEN = "accessToken";
 export const REFRESH_TOKEN = "refreshToken";
 
-// Request interceptor for adding token
+// Interface for decoded JWT token
+interface IUser {
+  exp: number;
+  // Add other user properties as needed
+  userId?: string;
+  email?: string;
+  role?: string;
+}
+
+// Function to check token validity and refresh if needed
+const checkTokenValidity = async (): Promise<boolean> => {
+  try {
+    const accessToken = await AsyncStorage.getItem(ACCESS_TOKEN);
+    const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN);
+
+    if (accessToken && refreshToken) {
+      const decodedAccessToken = jwtDecode(accessToken) as IUser;
+      const decodedRefreshToken = jwtDecode(refreshToken) as IUser;
+
+      const accessTokenExpiration = decodedAccessToken.exp;
+      const refreshTokenExpiration = decodedRefreshToken.exp;
+
+      const currentTimestamp = Math.floor(new Date().getTime() / 1000);
+
+      if (currentTimestamp > accessTokenExpiration) {
+        // Access token is expired
+        if (currentTimestamp > refreshTokenExpiration) {
+          // Refresh token is also expired, logout
+          await handleUnauthorized();
+          return false;
+        } else {
+          // Refresh token is still valid, try to refresh
+          try {
+            const response = await axios.post(
+              `${process.env.EXPO_PUBLIC_API_URL}/auth/refresh-token`,
+              { refreshToken }
+            );
+
+            if (response.data?.data?.accessToken) {
+              const newAccessToken = response.data.data.accessToken;
+              const newRefreshToken =
+                response.data.data.refreshToken || refreshToken;
+
+              // Save the new tokens
+              await AsyncStorage.setItem(ACCESS_TOKEN, newAccessToken);
+              await AsyncStorage.setItem(REFRESH_TOKEN, newRefreshToken);
+
+              return true;
+            } else {
+              await handleUnauthorized();
+              return false;
+            }
+          } catch (error) {
+            // Refresh failed, logout
+            await handleUnauthorized();
+            return false;
+          }
+        }
+      }
+
+      // Access token is still valid
+      return true;
+    } else {
+      // One or both tokens don't exist
+      await handleUnauthorized();
+      return false;
+    }
+  } catch (error) {
+    console.error("Error checking token validity:", error);
+    await handleUnauthorized();
+    return false;
+  }
+};
+
+// Request interceptor for adding token and checking expiration
 apiClient.interceptors.request.use(
   async (config) => {
     try {
-      // Get token from AsyncStorage
-      const token = await getItem(ACCESS_TOKEN);
+      // Check token validity before making the request
+      const isValid = await checkTokenValidity();
 
-      // If token exists, add it to the headers
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      if (isValid) {
+        // Get the (potentially refreshed) token
+        const token = await AsyncStorage.getItem(ACCESS_TOKEN);
+
+        if (token) {
+          // Add the token to the headers
+          config.headers.Authorization = `Bearer ${token}`;
+        }
       }
 
       return config;
@@ -57,32 +136,21 @@ apiClient.interceptors.response.use(
         try {
           (originalRequest as any)._retry = true;
 
-          // Get the refresh token
-          const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN);
+          // Check token validity and refresh if needed
+          const isValid = await checkTokenValidity();
 
-          if (!refreshToken) {
-            // No refresh token available, handle unauthorized
-            await handleUnauthorized();
-            return Promise.reject(createApiError(error));
-          }
-
-          // Call refresh token endpoint
-          const response = await axios.post(
-            `${process.env.EXPO_PUBLIC_API_URL}/auth/refresh`,
-            { refreshToken }
-          );
-
-          if (response.data?.data?.accessToken) {
-            const newToken = response.data.data.accessToken;
-
-            // Save the new token
-            await AsyncStorage.setItem(ACCESS_TOKEN, newToken);
+          if (isValid) {
+            // Get the refreshed token
+            const token = await AsyncStorage.getItem(ACCESS_TOKEN);
 
             // Update the Authorization header
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            originalRequest.headers.Authorization = `Bearer ${token}`;
 
             // Retry the original request
             return apiClient(originalRequest);
+          } else {
+            // Token refresh failed or user was logged out
+            return Promise.reject(createApiError(error));
           }
         } catch (refreshError) {
           // If refresh token fails, handle unauthorized
@@ -107,6 +175,10 @@ const handleUnauthorized = async () => {
       "firebaseToken",
     ]);
     console.log("User session expired. Redirect to login required.");
+
+    // You might want to add navigation to login screen here
+    // If you have access to a navigation reference or context
+    // Example: navigation.navigate('Login');
   } catch (error) {
     console.error("Error handling unauthorized status:", error);
   }
@@ -312,13 +384,13 @@ export const DELETE = (
  */
 export const safeApiCall = async <T>(
   apiCall: Promise<T>,
-  options: {
+  options?: {
     showError?: boolean;
     retryAction?: () => void;
     goBackAction?: () => void;
-  } = {}
+  }
 ): Promise<T> => {
-  const { showError = true, retryAction, goBackAction } = options;
+  const { showError = true, retryAction, goBackAction } = options || {};
 
   try {
     return await apiCall;
