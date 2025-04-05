@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1065242633621",
+    "project_id": "dev-storage-c9d70",
+    "storage_bucket": "dev-storage-c9d70.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1065242633621:android:153ca29096825c3d3d029c",
+        "android_client_info": {
+          "package_name": "com.listkelvin.allurekolapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1065242633621-6prd8qlelu1bg46j277h509gvaff4kdo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBizT-Ve5vYnQrri_OpsMfzwm3dX7Bii9M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1065242633621-6prd8qlelu1bg46j277h509gvaff4kdo.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

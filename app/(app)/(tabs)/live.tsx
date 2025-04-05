@@ -21,7 +21,9 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { myTheme } from "@/constants/index";
-import useLivestreams, { LivestreamResponse } from "@/hooks/api/useLivestreams";
+import useLivestreams, {
+  type LivestreamResponse,
+} from "@/hooks/api/useLivestreams";
 
 // Updated interface to match the actual API response
 
@@ -107,6 +109,19 @@ export default function LiveScreen() {
     const now = new Date();
     const date = new Date(dateString);
     const diffMs = date.getTime() - now.getTime();
+
+    // If the time has passed
+    if (diffMs < 0) {
+      const pastDiffMins = Math.abs(Math.round(diffMs / 60000));
+      const pastDiffHours = Math.abs(Math.round(diffMs / 3600000));
+      const pastDiffDays = Math.abs(Math.round(diffMs / 86400000));
+
+      if (pastDiffMins < 60) return `Started ${pastDiffMins} minutes ago`;
+      if (pastDiffHours < 24) return `Started ${pastDiffHours} hours ago`;
+      return `Started ${pastDiffDays} days ago`;
+    }
+
+    // If the time is in the future (original code)
     const diffMins = Math.round(diffMs / 60000);
     const diffHours = Math.round(diffMs / 3600000);
     const diffDays = Math.round(diffMs / 86400000);
@@ -134,77 +149,97 @@ export default function LiveScreen() {
     });
   };
 
-  const renderUpcomingStream = ({ item }: { item: LivestreamResponse }) => (
-    <Card style={styles.streamCard}>
-      <View style={styles.streamCardContent}>
-        {/* Thumbnail */}
-        <View style={styles.thumbnailContainer}>
-          {item.thumbnail ? (
-            <Image source={{ uri: item.thumbnail }} style={styles.thumbnail} />
-          ) : (
-            <View style={styles.placeholderThumbnail}>
-              <Feather name="video" size={24} color="#94a3b8" />
-            </View>
-          )}
-        </View>
+  const showComingSoonToast = () => {
+    // You can implement a toast notification here
+    console.log("This feature is coming soon!");
+  };
 
-        {/* Stream Info */}
-        <View style={styles.streamInfo}>
-          <Text style={styles.streamTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
+  const renderUpcomingStream = ({ item }: { item: LivestreamResponse }) => {
+    const now = new Date();
+    const streamStartTime = new Date(item.startTime);
+    const isPastEvent = streamStartTime < now;
 
-          <View style={styles.streamMetaRow}>
-            <Feather name="calendar" size={12} color="#64748b" />
-            <Text style={styles.streamMetaText}>
-              {formatDate(item.startTime)}
-            </Text>
-          </View>
-
-          <View style={styles.streamMetaRow}>
-            <Feather name="clock" size={12} color="#64748b" />
-            <Text style={styles.streamMetaText}>
-              {formatTime(item.startTime)}
-            </Text>
-          </View>
-
-          <View style={styles.streamMetaRow}>
-            <Feather name="clock" size={12} color="#64748b" />
-            <Text style={styles.streamMetaText}>
-              Duration: {calculateDuration(item.startTime, item.endTime)}
-            </Text>
-          </View>
-
-          <Text style={styles.timeUntilStart}>
-            {getTimeDescription(item.startTime)}
-          </Text>
-        </View>
-
-        {/* Start Button */}
-        <TouchableOpacity
-          style={styles.startButton}
-          onPress={() => handleStartStream(item)}
+    return (
+      <Card style={styles.streamCard}>
+        <View
+          style={[
+            styles.streamCardContent,
+            isPastEvent && styles.pastStreamCardContent,
+          ]}
         >
-          <Feather name="video" size={20} color="#fff" />
-          <Text style={styles.startButtonText}>Start</Text>
-        </TouchableOpacity>
-      </View>
-    </Card>
-  );
+          {/* Thumbnail */}
+          <View style={styles.thumbnailContainer}>
+            {item.thumbnail ? (
+              <Image
+                source={{ uri: item.thumbnail }}
+                style={styles.thumbnail}
+              />
+            ) : (
+              <View
+                style={[
+                  styles.placeholderThumbnail,
+                  isPastEvent && styles.pastPlaceholderThumbnail,
+                ]}
+              >
+                <Feather
+                  name="video"
+                  size={24}
+                  color={isPastEvent ? "#94a3b8" : "#94a3b8"}
+                />
+              </View>
+            )}
+          </View>
 
-  // Calculate duration between start and end time
-  const calculateDuration = (startTime: string, endTime: string) => {
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    const durationMs = end.getTime() - start.getTime();
+          {/* Stream Info */}
+          <View style={styles.streamInfo}>
+            <Text
+              style={[
+                styles.streamTitle,
+                isPastEvent && styles.pastStreamTitle,
+              ]}
+              numberOfLines={2}
+            >
+              {item.title}
+            </Text>
 
-    const hours = Math.floor(durationMs / (1000 * 60 * 60));
-    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+            <View style={styles.streamMetaRow}>
+              <Feather name="calendar" size={12} color="#64748b" />
+              <Text style={styles.streamMetaText}>
+                {formatDate(item.startTime)}
+              </Text>
+            </View>
 
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
+            <View style={styles.streamMetaRow}>
+              <Feather name="clock" size={12} color="#64748b" />
+              <Text style={styles.streamMetaText}>
+                {formatTime(item.startTime)}
+              </Text>
+            </View>
+
+            <Text
+              style={[
+                styles.timeUntilStart,
+                isPastEvent && styles.pastTimeUntilStart,
+              ]}
+            >
+              {getTimeDescription(item.startTime)}
+            </Text>
+          </View>
+
+          {/* Start Button */}
+          <TouchableOpacity
+            style={[styles.startButton, isPastEvent && styles.pastStartButton]}
+            onPress={() => handleStartStream(item)}
+            disabled={isPastEvent}
+          >
+            <Feather name="video" size={20} color="#fff" />
+            <Text style={styles.startButtonText}>
+              {isPastEvent ? "Ended" : "Start"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Card>
+    );
   };
 
   const renderUpcomingStreamsContent = () => {
@@ -291,6 +326,13 @@ export default function LiveScreen() {
 
         <Card style={styles.quickStartCard}>
           <View style={styles.quickStartContent}>
+            {/* Blur overlay to indicate feature is not ready */}
+            <View style={styles.comingSoonOverlay}>
+              <View style={styles.comingSoonBadge}>
+                <Text style={styles.comingSoonText}>Coming Soon</Text>
+              </View>
+            </View>
+
             <View style={styles.quickStartIconContainer}>
               <Feather name="zap" size={32} color={myTheme.primary} />
             </View>
@@ -302,8 +344,8 @@ export default function LiveScreen() {
               sessions with your audience.
             </Text>
             <TouchableOpacity
-              style={styles.quickStartButton}
-              onPress={() => router.push("/(app)/(livestream)/stream-config")}
+              style={styles.quickStartButtonDisabled}
+              onPress={showComingSoonToast}
             >
               <Feather name="video" size={20} color="#fff" />
               <Text style={styles.quickStartButtonText}>Go Live Now</Text>
@@ -561,10 +603,36 @@ const styles = StyleSheet.create({
   quickStartCard: {
     marginBottom: 24,
     padding: 0,
+    position: "relative",
+    overflow: "hidden",
   },
   quickStartContent: {
     padding: 20,
     alignItems: "center",
+    position: "relative",
+  },
+  comingSoonOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    zIndex: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  comingSoonBadge: {
+    backgroundColor: myTheme.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    // transform: [{ rotate: "-15deg" }],
+  },
+  comingSoonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
   },
   quickStartIconContainer: {
     width: 64,
@@ -591,6 +659,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#ef4444",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  quickStartButtonDisabled: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#9ca3af", // Gray color for disabled state
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
@@ -660,5 +736,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#fff",
+  },
+  pastStreamCardContent: {
+    backgroundColor: "#f8f9fa",
+    opacity: 0.8,
+  },
+  pastPlaceholderThumbnail: {
+    backgroundColor: "#e9ecef",
+  },
+  pastStreamTitle: {
+    color: "#6c757d",
+  },
+  pastTimeUntilStart: {
+    color: "#dc3545",
+  },
+  pastStartButton: {
+    backgroundColor: "#6c757d",
+    opacity: 0.7,
   },
 });

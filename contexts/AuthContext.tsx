@@ -19,6 +19,8 @@ import { getItem, removeItem, setItem } from "@/utils/asyncStorage";
 import type { TRoleResponse, GetRoleByEnumResponse } from "@/types/role";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useRole from "@/hooks/api/useRole";
+import { Alert } from "react-native";
+import { AxiosError } from "axios";
 
 export { useSession } from "../hooks/useSession";
 
@@ -91,7 +93,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
               {},
               {}
             );
-            console.log("check response");
+            console.log("check response", res);
 
             setAccessToken(res.data?.accessToken);
             setRefreshToken(res.data?.refreshToken);
@@ -106,9 +108,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
               });
             }
             return true;
-          } catch (error) {
+          } catch (error: any) {
             console.log("error 130", error);
 
+            if (error.message == "Invalid email") {
+              Alert.alert("Xin lỗi", "Email không hợp lệ", [{ text: "OK" }]);
+            } else if (error.message == "Invalid password") {
+              Alert.alert("Xin lỗi", "Mật khẩu không hợp lệ", [{ text: "OK" }]);
+            }
             return resolveError(error);
           }
         },

@@ -1,0 +1,609 @@
+diff --git a/node_modules/uilib-native/android/.classpath b/node_modules/uilib-native/android/.classpath
+new file mode 100644
+index 0000000..0b62ab9
+--- /dev/null
++++ b/node_modules/uilib-native/android/.classpath
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<classpath>
++	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-18/"/>
++	<classpathentry kind="con" path="org.eclipse.buildship.core.gradleclasspathcontainer"/>
++	<classpathentry kind="output" path="bin/default"/>
++</classpath>
+diff --git a/node_modules/uilib-native/android/.project b/node_modules/uilib-native/android/.project
+new file mode 100644
+index 0000000..a4b0de4
+--- /dev/null
++++ b/node_modules/uilib-native/android/.project
+@@ -0,0 +1,34 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<projectDescription>
++	<name>react-native-ui-lib</name>
++	<comment>Project react-native-ui-lib created by Buildship.</comment>
++	<projects>
++	</projects>
++	<buildSpec>
++		<buildCommand>
++			<name>org.eclipse.jdt.core.javabuilder</name>
++			<arguments>
++			</arguments>
++		</buildCommand>
++		<buildCommand>
++			<name>org.eclipse.buildship.core.gradleprojectbuilder</name>
++			<arguments>
++			</arguments>
++		</buildCommand>
++	</buildSpec>
++	<natures>
++		<nature>org.eclipse.jdt.core.javanature</nature>
++		<nature>org.eclipse.buildship.core.gradleprojectnature</nature>
++	</natures>
++	<filteredResources>
++		<filter>
++			<id>1741796796476</id>
++			<name></name>
++			<type>30</type>
++			<matcher>
++				<id>org.eclipse.core.resources.regexFilterMatcher</id>
++				<arguments>node_modules|\.git|__CREATED_BY_JAVA_LANGUAGE_SERVER__</arguments>
++			</matcher>
++		</filter>
++	</filteredResources>
++</projectDescription>
+diff --git a/node_modules/uilib-native/android/.settings/org.eclipse.buildship.core.prefs b/node_modules/uilib-native/android/.settings/org.eclipse.buildship.core.prefs
+new file mode 100644
+index 0000000..1675490
+--- /dev/null
++++ b/node_modules/uilib-native/android/.settings/org.eclipse.buildship.core.prefs
+@@ -0,0 +1,2 @@
++connection.project.dir=../../../android
++eclipse.preferences.version=1
+diff --git a/node_modules/uilib-native/android/bin/.project b/node_modules/uilib-native/android/bin/.project
+new file mode 100644
+index 0000000..a4b0de4
+--- /dev/null
++++ b/node_modules/uilib-native/android/bin/.project
+@@ -0,0 +1,34 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<projectDescription>
++	<name>react-native-ui-lib</name>
++	<comment>Project react-native-ui-lib created by Buildship.</comment>
++	<projects>
++	</projects>
++	<buildSpec>
++		<buildCommand>
++			<name>org.eclipse.jdt.core.javabuilder</name>
++			<arguments>
++			</arguments>
++		</buildCommand>
++		<buildCommand>
++			<name>org.eclipse.buildship.core.gradleprojectbuilder</name>
++			<arguments>
++			</arguments>
++		</buildCommand>
++	</buildSpec>
++	<natures>
++		<nature>org.eclipse.jdt.core.javanature</nature>
++		<nature>org.eclipse.buildship.core.gradleprojectnature</nature>
++	</natures>
++	<filteredResources>
++		<filter>
++			<id>1741796796476</id>
++			<name></name>
++			<type>30</type>
++			<matcher>
++				<id>org.eclipse.core.resources.regexFilterMatcher</id>
++				<arguments>node_modules|\.git|__CREATED_BY_JAVA_LANGUAGE_SERVER__</arguments>
++			</matcher>
++		</filter>
++	</filteredResources>
++</projectDescription>
+diff --git a/node_modules/uilib-native/android/bin/build.gradle b/node_modules/uilib-native/android/bin/build.gradle
+new file mode 100644
+index 0000000..5f0b7d6
+--- /dev/null
++++ b/node_modules/uilib-native/android/bin/build.gradle
+@@ -0,0 +1,32 @@
++apply plugin: 'com.android.library'
++
++project.ext {
++    buildToolsVersion = rootProject.ext.has("buildToolsVersion") ? rootProject.ext.buildToolsVersion : '27.0.3'
++    minSdkVersion = rootProject.ext.has("minSdkVersion") ? rootProject.ext.minSdkVersion : 19
++    compileSdkVersion = rootProject.ext.has("compileSdkVersion") ? rootProject.ext.compileSdkVersion : 27
++    targetSdkVersion = rootProject.ext.has("targetSdkVersion") ? rootProject.ext.targetSdkVersion : 25
++    supportLibVersion = rootProject.ext.has("supportLibVersion") ? rootProject.ext.supportLibVersion  : '27.1.1'
++}
++
++android {
++    namespace "com.wix.reactnativeuilib"
++    compileSdkVersion project.ext.compileSdkVersion
++    buildToolsVersion project.ext.buildToolsVersion
++
++    defaultConfig {
++        minSdkVersion project.ext.minSdkVersion
++        targetSdkVersion project.ext.targetSdkVersion
++        versionCode 1
++        versionName "1.0"
++    }
++    buildTypes {
++        release {
++            minifyEnabled false
++            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
++        }
++    }
++}
++
++dependencies {
++    implementation 'com.facebook.react:react-native:+'
++}
+diff --git a/node_modules/uilib-native/android/build/.transforms/7a0fddfb55de971120e2e72c3583347f/results.bin b/node_modules/uilib-native/android/build/.transforms/7a0fddfb55de971120e2e72c3583347f/results.bin
+new file mode 100644
+index 0000000..0d259dd
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/.transforms/7a0fddfb55de971120e2e72c3583347f/results.bin
+@@ -0,0 +1 @@
++o/classes
+diff --git a/node_modules/uilib-native/android/build/.transforms/7a0fddfb55de971120e2e72c3583347f/transformed/classes/classes_dex/classes.dex b/node_modules/uilib-native/android/build/.transforms/7a0fddfb55de971120e2e72c3583347f/transformed/classes/classes_dex/classes.dex
+new file mode 100644
+index 0000000..83d4749
+Binary files /dev/null and b/node_modules/uilib-native/android/build/.transforms/7a0fddfb55de971120e2e72c3583347f/transformed/classes/classes_dex/classes.dex differ
+diff --git a/node_modules/uilib-native/android/build/.transforms/99fae49ffc82832595be9341fedef1dc/results.bin b/node_modules/uilib-native/android/build/.transforms/99fae49ffc82832595be9341fedef1dc/results.bin
+new file mode 100644
+index 0000000..0d259dd
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/.transforms/99fae49ffc82832595be9341fedef1dc/results.bin
+@@ -0,0 +1 @@
++o/classes
+diff --git a/node_modules/uilib-native/android/build/.transforms/99fae49ffc82832595be9341fedef1dc/transformed/classes/classes_dex/classes.dex b/node_modules/uilib-native/android/build/.transforms/99fae49ffc82832595be9341fedef1dc/transformed/classes/classes_dex/classes.dex
+new file mode 100644
+index 0000000..5b4d112
+Binary files /dev/null and b/node_modules/uilib-native/android/build/.transforms/99fae49ffc82832595be9341fedef1dc/transformed/classes/classes_dex/classes.dex differ
+diff --git a/node_modules/uilib-native/android/build/generated/source/buildConfig/debug/com/wix/reactnativeuilib/BuildConfig.java b/node_modules/uilib-native/android/build/generated/source/buildConfig/debug/com/wix/reactnativeuilib/BuildConfig.java
+new file mode 100644
+index 0000000..c90a048
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/generated/source/buildConfig/debug/com/wix/reactnativeuilib/BuildConfig.java
+@@ -0,0 +1,10 @@
++/**
++ * Automatically generated file. DO NOT MODIFY
++ */
++package com.wix.reactnativeuilib;
++
++public final class BuildConfig {
++  public static final boolean DEBUG = Boolean.parseBoolean("true");
++  public static final String LIBRARY_PACKAGE_NAME = "com.wix.reactnativeuilib";
++  public static final String BUILD_TYPE = "debug";
++}
+diff --git a/node_modules/uilib-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml b/node_modules/uilib-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml
+new file mode 100644
+index 0000000..64396b0
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.wix.reactnativeuilib" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json b/node_modules/uilib-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json
+new file mode 100644
+index 0000000..f9d78d5
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json
+@@ -0,0 +1,18 @@
++{
++  "version": 3,
++  "artifactType": {
++    "type": "AAPT_FRIENDLY_MERGED_MANIFESTS",
++    "kind": "Directory"
++  },
++  "applicationId": "com.wix.reactnativeuilib",
++  "variantName": "debug",
++  "elements": [
++    {
++      "type": "SINGLE",
++      "filters": [],
++      "attributes": [],
++      "outputFile": "AndroidManifest.xml"
++    }
++  ],
++  "elementType": "File"
++}
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties b/node_modules/uilib-native/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+new file mode 100644
+index 0000000..1211b1e
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+@@ -0,0 +1,6 @@
++aarFormatVersion=1.0
++aarMetadataVersion=1.0
++minCompileSdk=1
++minCompileSdkExtension=0
++minAndroidGradlePluginVersion=1.0.0
++coreLibraryDesugaringEnabled=false
+diff --git a/node_modules/uilib-native/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json b/node_modules/uilib-native/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar b/node_modules/uilib-native/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar
+new file mode 100644
+index 0000000..36dfa8a
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar b/node_modules/uilib-native/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar
+new file mode 100644
+index 0000000..8e00e04
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt b/node_modules/uilib-native/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt
+new file mode 100644
+index 0000000..8f84002
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt
+@@ -0,0 +1,9 @@
++int color colorAccent 0x0
++int color colorPrimary 0x0
++int color colorPrimaryDark 0x0
++int color dividerColor 0x0
++int color numberPickerDivider 0x0
++int color title 0x0
++int id numberPicker 0x0
++int layout wheel_picker 0x0
++int style NumberPickerTextColorStyle 0x0
+diff --git a/node_modules/uilib-native/android/build/intermediates/compiled_local_resources/debug/compileDebugLibraryResources/out/layout_wheel_picker.xml.flat b/node_modules/uilib-native/android/build/intermediates/compiled_local_resources/debug/compileDebugLibraryResources/out/layout_wheel_picker.xml.flat
+new file mode 100644
+index 0000000..433752d
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/compiled_local_resources/debug/compileDebugLibraryResources/out/layout_wheel_picker.xml.flat differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties b/node_modules/uilib-native/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+new file mode 100644
+index 0000000..10ec8c4
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+@@ -0,0 +1,2 @@
++#Fri Mar 14 12:39:15 ICT 2025
++com.wix.reactnativeuilib.react-native-ui-lib-main-6\:/layout/wheel_picker.xml=D\:\\Capstone-cuoi-cung\\code\\allure-kol-app\\node_modules\\uilib-native\\android\\build\\intermediates\\packaged_res\\debug\\packageDebugResources\\layout\\wheel_picker.xml
+diff --git a/node_modules/uilib-native/android/build/intermediates/incremental/debug/packageDebugResources/merged.dir/values/values.xml b/node_modules/uilib-native/android/build/intermediates/incremental/debug/packageDebugResources/merged.dir/values/values.xml
+new file mode 100644
+index 0000000..e90c476
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/incremental/debug/packageDebugResources/merged.dir/values/values.xml
+@@ -0,0 +1,15 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <color name="colorAccent">#FF4081</color>
++    <color name="colorPrimary">#3F51B5</color>
++    <color name="colorPrimaryDark">#303F9F</color>
++    <color name="dividerColor">#459FED</color>
++    <color name="numberPickerDivider">#FF4081</color>
++    <color name="title">#20303c</color>
++    <style name="NumberPickerTextColorStyle">
++        <item name="android:textColorPrimary">@color/dividerColor</item>
++        <item name="android:editTextColor">@color/dividerColor</item>
++        <item name="android:textSize">20dp</item>
++        <item name="colorControlNormal">@color/dividerColor</item>
++    </style>
++</resources>
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml b/node_modules/uilib-native/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+new file mode 100644
+index 0000000..1fd8ee5
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\res"><file name="wheel_picker" path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\res\layout\wheel_picker.xml" qualifiers="" type="layout"/><file path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\res\values\colors.xml" qualifiers=""><color name="colorPrimary">#3F51B5</color><color name="colorPrimaryDark">#303F9F</color><color name="colorAccent">#FF4081</color><color name="dividerColor">#459FED</color><color name="numberPickerDivider">#FF4081</color><color name="title">#20303c</color></file><file path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\res\values\styles.xml" qualifiers=""><style name="NumberPickerTextColorStyle">
++        <item name="android:textColorPrimary">@color/dividerColor</item>
++        <item name="android:editTextColor">@color/dividerColor</item>
++        <item name="android:textSize">20dp</item>
++        <item name="colorControlNormal">@color/dividerColor</item>
++    </style></file></source></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\debug\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug" generated-set="debug$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\debug\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\build\generated\res\resValues\debug"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\build\generated\res\resValues\debug"/></dataSet><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml b/node_modules/uilib-native/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml
+new file mode 100644
+index 0000000..9c751b5
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\jniLibs"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\debug\jniLibs"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/incremental/mergeDebugShaders/merger.xml b/node_modules/uilib-native/android/build/intermediates/incremental/mergeDebugShaders/merger.xml
+new file mode 100644
+index 0000000..f7d048c
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/incremental/mergeDebugShaders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\shaders"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\debug\shaders"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/incremental/packageDebugAssets/merger.xml b/node_modules/uilib-native/android/build/intermediates/incremental/packageDebugAssets/merger.xml
+new file mode 100644
+index 0000000..bbff9a9
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/incremental/packageDebugAssets/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\assets"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\debug\assets"/></dataSet><dataSet config="generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\build\intermediates\shader_assets\debug\compileDebugShaders\out"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/dynamicfont/DynamicFontModule.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/dynamicfont/DynamicFontModule.class
+new file mode 100644
+index 0000000..0fd31d7
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/dynamicfont/DynamicFontModule.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/dynamicfont/DynamicFontPackage.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/dynamicfont/DynamicFontPackage.class
+new file mode 100644
+index 0000000..3d1ab86
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/dynamicfont/DynamicFontPackage.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlightFrame.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlightFrame.class
+new file mode 100644
+index 0000000..8a9251f
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlightFrame.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlightViewTagParams.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlightViewTagParams.class
+new file mode 100644
+index 0000000..61342f6
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlightViewTagParams.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterView.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterView.class
+new file mode 100644
+index 0000000..80dcb03
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterView.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterViewManager$1.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterViewManager$1.class
+new file mode 100644
+index 0000000..f37d8b4
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterViewManager$1.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterViewManager.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterViewManager.class
+new file mode 100644
+index 0000000..8e18725
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterViewManager.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterViewPackage.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterViewPackage.class
+new file mode 100644
+index 0000000..a870f4a
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/HighlighterViewPackage.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/ReactHacks.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/ReactHacks.class
+new file mode 100644
+index 0000000..e97d414
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/ReactHacks.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/ReflectionUtils.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/ReflectionUtils.class
+new file mode 100644
+index 0000000..54bc32d
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/ReflectionUtils.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/UiUtils.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/UiUtils.class
+new file mode 100644
+index 0000000..12bd053
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/highlighterview/UiUtils.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/keyboardinput/AppContextHolder$1.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/keyboardinput/AppContextHolder$1.class
+new file mode 100644
+index 0000000..eb6aa15
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/keyboardinput/AppContextHolder$1.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/keyboardinput/AppContextHolder.class b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/keyboardinput/AppContextHolder.class
+new file mode 100644
+index 0000000..a5906df
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/wix/reactnativeuilib/keyboardinput/AppContextHolder.class differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt b/node_modules/uilib-native/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+new file mode 100644
+index 0000000..f6ce3e4
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+@@ -0,0 +1,11 @@
++R_DEF: Internal format may change without notice
++local
++color colorAccent
++color colorPrimary
++color colorPrimaryDark
++color dividerColor
++color numberPickerDivider
++color title
++id numberPicker
++layout wheel_picker
++style NumberPickerTextColorStyle
+diff --git a/node_modules/uilib-native/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt b/node_modules/uilib-native/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt
+new file mode 100644
+index 0000000..a3627b7
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt
+@@ -0,0 +1,7 @@
++1<?xml version="1.0" encoding="utf-8"?>
++2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++3    package="com.wix.reactnativeuilib" >
++4
++5    <uses-sdk android:minSdkVersion="24" />
++6
++7</manifest>
+diff --git a/node_modules/uilib-native/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml b/node_modules/uilib-native/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml
+new file mode 100644
+index 0000000..64396b0
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.wix.reactnativeuilib" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json b/node_modules/uilib-native/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json
+new file mode 100644
+index 0000000..0637a08
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json
+@@ -0,0 +1 @@
++[]
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt b/node_modules/uilib-native/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/packaged_res/debug/packageDebugResources/layout/wheel_picker.xml b/node_modules/uilib-native/android/build/intermediates/packaged_res/debug/packageDebugResources/layout/wheel_picker.xml
+new file mode 100644
+index 0000000..59b1414
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/packaged_res/debug/packageDebugResources/layout/wheel_picker.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<com.wix.reactnativeuilib.wheelpicker.ThemedNumberPicker
++    android:id="@+id/numberPicker"
++    android:layout_height="148dp"
++    android:layout_width="56dp"
++    android:divider="@color/dividerColor"
++    android:editTextColor="@color/dividerColor"
++    android:textSize="20dp"
++    xmlns:android="http://schemas.android.com/apk/res/android" />
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/packaged_res/debug/packageDebugResources/values/values.xml b/node_modules/uilib-native/android/build/intermediates/packaged_res/debug/packageDebugResources/values/values.xml
+new file mode 100644
+index 0000000..e90c476
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/packaged_res/debug/packageDebugResources/values/values.xml
+@@ -0,0 +1,15 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <color name="colorAccent">#FF4081</color>
++    <color name="colorPrimary">#3F51B5</color>
++    <color name="colorPrimaryDark">#303F9F</color>
++    <color name="dividerColor">#459FED</color>
++    <color name="numberPickerDivider">#FF4081</color>
++    <color name="title">#20303c</color>
++    <style name="NumberPickerTextColorStyle">
++        <item name="android:textColorPrimary">@color/dividerColor</item>
++        <item name="android:editTextColor">@color/dividerColor</item>
++        <item name="android:textSize">20dp</item>
++        <item name="colorControlNormal">@color/dividerColor</item>
++    </style>
++</resources>
+\ No newline at end of file
+diff --git a/node_modules/uilib-native/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar b/node_modules/uilib-native/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar
+new file mode 100644
+index 0000000..fc39653
+Binary files /dev/null and b/node_modules/uilib-native/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar differ
+diff --git a/node_modules/uilib-native/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt b/node_modules/uilib-native/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..970a23c
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+@@ -0,0 +1,10 @@
++com.wix.reactnativeuilib
++color colorAccent
++color colorPrimary
++color colorPrimaryDark
++color dividerColor
++color numberPickerDivider
++color title
++id numberPicker
++layout wheel_picker
++style NumberPickerTextColorStyle
+diff --git a/node_modules/uilib-native/android/build/outputs/logs/manifest-merger-debug-report.txt b/node_modules/uilib-native/android/build/outputs/logs/manifest-merger-debug-report.txt
+new file mode 100644
+index 0000000..1e6000a
+--- /dev/null
++++ b/node_modules/uilib-native/android/build/outputs/logs/manifest-merger-debug-report.txt
+@@ -0,0 +1,16 @@
++-- Merging decision tree log ---
++manifest
++ADDED from D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\AndroidManifest.xml:2:1-4:12
++INJECTED from D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\AndroidManifest.xml:2:1-4:12
++	package
++		INJECTED from D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\AndroidManifest.xml
++	xmlns:android
++		ADDED from D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\AndroidManifest.xml:3:5-63
++uses-sdk
++INJECTED from D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\AndroidManifest.xml reason: use-sdk injection requested
++INJECTED from D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\AndroidManifest.xml
++INJECTED from D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\AndroidManifest.xml
++	android:targetSdkVersion
++		INJECTED from D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\AndroidManifest.xml
++	android:minSdkVersion
++		INJECTED from D:\Capstone-cuoi-cung\code\allure-kol-app\node_modules\uilib-native\android\src\main\AndroidManifest.xml
+diff --git a/node_modules/uilib-native/android/src/main/java/com/wix/reactnativeuilib/keyboardinput/utils/RuntimeUtils.java b/node_modules/uilib-native/android/src/main/java/com/wix/reactnativeuilib/keyboardinput/utils/RuntimeUtils.java
+index 95c5e8e..1e03061 100644
+--- a/node_modules/uilib-native/android/src/main/java/com/wix/reactnativeuilib/keyboardinput/utils/RuntimeUtils.java
++++ b/node_modules/uilib-native/android/src/main/java/com/wix/reactnativeuilib/keyboardinput/utils/RuntimeUtils.java
+@@ -1,33 +1,65 @@
+ package com.wix.reactnativeuilib.keyboardinput.utils;
+ 
++import android.util.Log;
++import com.facebook.react.bridge.ReactContext;
+ import com.facebook.react.uimanager.UIManagerModule;
+ import com.wix.reactnativeuilib.keyboardinput.ReactContextHolder;
+ 
+ public class RuntimeUtils {
+-
+-    // TODO Switch to GuardedRunnable when upgrading RN's minimal ver
+-    private static final Runnable sUIUpdateClosure = new Runnable() {
++  private static final Runnable sUIUpdateClosure = new Runnable() {
+         @Override
+         public void run() {
+-            ReactContextHolder.getContext().getNativeModule(UIManagerModule.class).onBatchComplete();
++            try {
++                ReactContext context = ReactContextHolder.getContext();
++                if (context != null) {
++                    UIManagerModule uiManager = context.getNativeModule(UIManagerModule.class);
++                    if (uiManager != null) {
++                        uiManager.onBatchComplete();
++                    }
++                }
++            } catch (Exception e) {
++                e.printStackTrace();
++            }
+         }
+     };
+ 
+     public static void runOnUIThread(Runnable runnable) {
+-        if (ReactContextHolder.getContext() != null) {
+-            ReactContextHolder.getContext().runOnUiQueueThread(runnable);
++        try {
++            if (ReactContextHolder.getContext() != null) {
++                ReactContextHolder.getContext().runOnUiQueueThread(runnable);
++            }
++        } catch (Exception e) {
++            e.printStackTrace();
+         }
+     }
+ 
+     public static void dispatchUIUpdates(final Runnable userRunnable) {
+-        runOnUIThread(new Runnable() {
+-            @Override
+-            public void run() {
+-                userRunnable.run();
+-                if (ReactContextHolder.getContext() != null) {
+-                    ReactContextHolder.getContext().runOnNativeModulesQueueThread(sUIUpdateClosure);
++        if (ReactContextHolder.getContext() == null) {
++            return; // Skip if context is null
++        }
++
++        try {
++            runOnUIThread(new Runnable() {
++                @Override
++                public void run() {
++                    try {
++                        // Re-check context before running user code
++                        if (ReactContextHolder.getContext() != null) {
++                            userRunnable.run();
++
++                            // Get a fresh context reference before queue operation
++                            ReactContext context = ReactContextHolder.getContext();
++                            if (context != null) {
++                                context.runOnNativeModulesQueueThread(sUIUpdateClosure);
++                            }
++                        }
++                    } catch (Exception e) {
++                        e.printStackTrace();
++                    }
+                 }
+-            }
+-        });
++            });
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
+     }
+ }

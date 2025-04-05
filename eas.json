@@ -9,8 +9,7 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://allure-api.kelvinpham.online/allure",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "minh",
-        "EXPO_PUBLIC_FIREBASE_VAPID_KEY": "minh"
+        "EXPO_PUBLIC_FIREBASE_VAPID_KEY": "BGBB6QUpBsaiSnu4s_sOTYx25D5V4QqtDUB13RwdFl0axib2Q1JRQyg1HD93QbVZgo4tLDHD62usgmQT-lWLWDA"
       }
     },
     "preview": {
@@ -20,8 +19,7 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://allure-api.kelvinpham.online/allure",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "minh",
-        "EXPO_PUBLIC_FIREBASE_VAPID_KEY": "minh"
+        "EXPO_PUBLIC_FIREBASE_VAPID_KEY": "BGBB6QUpBsaiSnu4s_sOTYx25D5V4QqtDUB13RwdFl0axib2Q1JRQyg1HD93QbVZgo4tLDHD62usgmQT-lWLWDA"
       }
     },
     "production": {
@@ -30,8 +28,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://allure-api.kelvinpham.online/allure",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "minh",
-        "EXPO_PUBLIC_FIREBASE_VAPID_KEY": "minh"
+        "EXPO_PUBLIC_FIREBASE_VAPID_KEY": "BGBB6QUpBsaiSnu4s_sOTYx25D5V4QqtDUB13RwdFl0axib2Q1JRQyg1HD93QbVZgo4tLDHD62usgmQT-lWLWDA"
       },
       "autoIncrement": true
     }

@@ -1,6 +1,4 @@
 import { useCallback } from "react";
-
-import { resolveError } from "@/utils";
 import { IEditUserPayload, TUser } from "@/types/user";
 import { GET, PUT } from "@/utils/api.caller";
 import { useApi } from "./useApi";

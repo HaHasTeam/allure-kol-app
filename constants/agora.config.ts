@@ -6,6 +6,7 @@ const config = {
   channelId: "testdcg",
   uid: 0,
   logFilePath: "",
+  chatAppKey: "411312669#1514023",
 };
 
 export default config;

@@ -7,6 +7,7 @@ import axios, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 import { jwtDecode } from "jwt-decode";
+import { getItem, setItem } from "./asyncStorage";
 
 // Create a custom axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -44,11 +45,15 @@ const checkTokenValidity = async (): Promise<boolean> => {
 
       const currentTimestamp = Math.floor(new Date().getTime() / 1000);
 
+      console.log(
+        "Both tokens expired. Logging out.",
+        currentTimestamp > accessTokenExpiration
+      );
       if (currentTimestamp > accessTokenExpiration) {
         // Access token is expired
         if (currentTimestamp > refreshTokenExpiration) {
           // Refresh token is also expired, logout
-          await handleUnauthorized();
+          // await handleUnauthorized();
           return false;
         } else {
           // Refresh token is still valid, try to refresh
@@ -64,8 +69,8 @@ const checkTokenValidity = async (): Promise<boolean> => {
                 response.data.data.refreshToken || refreshToken;
 
               // Save the new tokens
-              await AsyncStorage.setItem(ACCESS_TOKEN, newAccessToken);
-              await AsyncStorage.setItem(REFRESH_TOKEN, newRefreshToken);
+              await setItem(ACCESS_TOKEN, newAccessToken);
+              await setItem(REFRESH_TOKEN, newRefreshToken);
 
               return true;
             } else {
@@ -103,7 +108,7 @@ apiClient.interceptors.request.use(
 
       if (isValid) {
         // Get the (potentially refreshed) token
-        const token = await AsyncStorage.getItem(ACCESS_TOKEN);
+        const token = await getItem(ACCESS_TOKEN);
 
         if (token) {
           // Add the token to the headers
@@ -141,7 +146,7 @@ apiClient.interceptors.response.use(
 
           if (isValid) {
             // Get the refreshed token
-            const token = await AsyncStorage.getItem(ACCESS_TOKEN);
+            const token = await getItem(ACCESS_TOKEN);
 
             // Update the Authorization header
             originalRequest.headers.Authorization = `Bearer ${token}`;

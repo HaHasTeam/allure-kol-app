@@ -28,28 +28,134 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { myTheme } from "@/constants/index";
-import { useViewerStream } from "@/hooks/useViewerStream";
+import { useViewerStreamAttachment } from "@/hooks/useViewerStreamAttachment";
 import useLivestreams from "@/hooks/api/useLivestreams";
 import { log } from "@/utils/logger";
 import useUser from "@/hooks/api/useUser";
+import { useFirebaseChat } from "@/hooks/useFirebaseChat";
+import ProductsBottomSheet from "@/components/product-bottom-sheet";
+import type { IResponseProduct } from "@/types/product";
 
 const { width, height } = Dimensions.get("window");
+
+// Sample products data
+const SAMPLE_PRODUCTS: IResponseProduct[] = [
+  {
+    id: "1",
+    name: "Mic. Cap sr190",
+    brand: {
+      id: "b1",
+      name: "AudioTech",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      logo: "https://via.placeholder.com/50",
+      description: "AudioTech brand description",
+    },
+    images: [{ fileUrl: "https://via.placeholder.com/50" }],
+    description: "Professional microphone cap",
+    status: "active",
+    detail: "High-quality microphone cap for professional use",
+    productClassifications: [],
+    price: 190,
+    quantity: 100,
+    updatedAt: new Date().toISOString(),
+    salesLast30Days: "25",
+    totalSales: "120",
+    totalRatings: "45",
+    averageRating: "4.5",
+    certificates: [],
+    average_rating: 4.5,
+    total_ratings: 45,
+  },
+  {
+    id: "2",
+    name: "Earphone X123",
+    brand: { id: "b2", name: "SoundWave" },
+    images: [{ fileUrl: "https://via.placeholder.com/50" }],
+    description: "Wireless earphones with noise cancellation",
+    status: "active",
+    detail: "Premium wireless earphones with active noise cancellation",
+    productClassifications: [],
+    price: 40,
+    quantity: 200,
+    updatedAt: new Date().toISOString(),
+    salesLast30Days: "50",
+    totalSales: "300",
+    totalRatings: "120",
+    averageRating: "4.2",
+    certificates: [],
+    average_rating: 4.2,
+    total_ratings: 120,
+  },
+  {
+    id: "3",
+    name: "Mouse AS900",
+    brand: { id: "b3", name: "TechGear" },
+    images: [{ fileUrl: "https://via.placeholder.com/50" }],
+    description: "Gaming mouse with RGB lighting",
+    status: "active",
+    detail: "High-precision gaming mouse with customizable RGB lighting",
+    productClassifications: [],
+    price: 100,
+    quantity: 150,
+    updatedAt: new Date().toISOString(),
+    salesLast30Days: "30",
+    totalSales: "180",
+    totalRatings: "75",
+    averageRating: "4.7",
+    certificates: [],
+    average_rating: 4.7,
+    total_ratings: 75,
+  },
+  {
+    id: "4",
+    name: "Monitor LED100",
+    brand: { id: "b4", name: "VisualPro" },
+    images: [{ fileUrl: "https://via.placeholder.com/50" }],
+    description: "27-inch LED monitor with 4K resolution",
+    status: "active",
+    detail:
+      "Professional 27-inch LED monitor with 4K resolution and HDR support",
+    productClassifications: [],
+    price: 220,
+    quantity: 80,
+    updatedAt: new Date().toISOString(),
+    salesLast30Days: "15",
+    totalSales: "90",
+    totalRatings: "40",
+    averageRating: "4.8",
+    certificates: [],
+    average_rating: 4.8,
+    total_ratings: 40,
+  },
+  {
+    id: "5",
+    name: "Desk Lamp X11",
+    brand: { id: "b5", name: "LightMaster" },
+    images: [{ fileUrl: "https://via.placeholder.com/50" }],
+    description: "Adjustable desk lamp with multiple lighting modes",
+    status: "active",
+    detail:
+      "Modern adjustable desk lamp with touch control and multiple lighting modes",
+    productClassifications: [],
+    price: 75,
+    quantity: 120,
+    updatedAt: new Date().toISOString(),
+    salesLast30Days: "20",
+    totalSales: "110",
+    totalRatings: "35",
+    averageRating: "4.3",
+    certificates: [],
+    average_rating: 4.3,
+    total_ratings: 35,
+  },
+];
 
 export default function LivestreamViewerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const [isChatVisible, setIsChatVisible] = useState(true);
-  const [messages, setMessages] = useState<
-    {
-      id: string;
-      user: string;
-      message: string;
-      avatar: string;
-      timestamp: number;
-    }[]
-  >([]);
+  const [isChatVisible, setIsChatVisible] = useState(false);
   const [newMessage, setNewMessage] = useState("");
-  const [viewerCount, setViewerCount] = useState(0);
   const [streamDuration, setStreamDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [currentToken, setCurrentToken] = useState<string | null>(null);
@@ -67,6 +173,30 @@ export default function LivestreamViewerScreen() {
   const [account, setAccount] = useState<{ id: string; name: string } | null>(
     null
   );
+  const [cartItems, setCartItems] = useState<IResponseProduct[]>([]);
+
+  // Products modal visibility state
+  const [isProductsModalVisible, setProductsModalVisible] = useState(false);
+
+  // Get params
+  const livestreamId = params.id as string;
+  const { getLivestreamToken, getLivestreamById } = useLivestreams();
+  const { getProfile } = useUser();
+
+  // Use Firebase chat hook
+  const {
+    messages: chatMessages,
+    isInitialized: isChatInitialized,
+    isLoggedIn: isChatLoggedIn,
+    isSending: isChatSending,
+    error: chatError,
+    isLoadingMore,
+    hasMoreMessages,
+    sendMessage: sendChatMessage,
+    loadMoreMessages,
+    clearError: clearChatError,
+    reconnect: reconnectChat,
+  } = useFirebaseChat(livestreamId);
 
   const chatListRef = useRef<
     FlatListType<{
@@ -83,11 +213,6 @@ export default function LivestreamViewerScreen() {
   const chatOpacity = useSharedValue(1);
   const controlsOpacity = useSharedValue(1);
   const fabScale = useSharedValue(1);
-
-  // Get params
-  const livestreamId = params.id as string;
-  const { getLivestreamToken, getLivestreamById } = useLivestreams();
-  const { getProfile } = useUser();
 
   // Function to refresh the token
   const handleTokenRefresh = useCallback(() => {
@@ -162,7 +287,7 @@ export default function LivestreamViewerScreen() {
     fetchLivestreamData();
   }, [livestreamId, getLivestreamById, getLivestreamToken]);
 
-  // Initialize the viewer stream hook
+  // Initialize the viewer stream hook with attachment for viewer count
   const {
     engine,
     isInitialized,
@@ -172,7 +297,8 @@ export default function LivestreamViewerScreen() {
     isHostAudioEnabled,
     joinChannel,
     leaveChannel,
-  } = useViewerStream({
+    viewerCount,
+  } = useViewerStreamAttachment({
     appId: "00f5d43335cb4a19969ef78bb8955d2c", // Replace with your Agora App ID
     channel: livestreamId,
     token: currentToken,
@@ -226,21 +352,26 @@ export default function LivestreamViewerScreen() {
     }, 5000);
   };
 
+  // Refresh viewer count periodically
+  useEffect(() => {
+    if (joinChannelSuccess) {
+      // Initial refresh
+      // refreshViewerCount()
+      // Set up interval to refresh viewer count
+      // const intervalId = setInterval(() => {
+      //   refreshViewerCount()
+      // }, 10000) // Refresh every 10 seconds
+      // return () => {
+      //   clearInterval(intervalId)
+      // }
+    }
+  }, [joinChannelSuccess]);
+
   useEffect(() => {
     // Start timer for stream duration
     timerRef.current = setInterval(() => {
       setStreamDuration((prev) => prev + 1);
     }, 1000);
-
-    // Simulate increasing viewer count
-    // const viewerInterval = setInterval(() => {
-    //   setViewerCount((prev) =>
-    //     Math.min(prev + Math.floor(Math.random() * 3), 9999)
-    //   );
-    // }, 5000);
-
-    // Set initial viewer count
-    setViewerCount(Math.floor(Math.random() * 50) + 10);
 
     // Handle back button press
     const backHandler = BackHandler.addEventListener(
@@ -307,26 +438,28 @@ export default function LivestreamViewerScreen() {
   };
 
   // Send a chat message
-  const sendMessage = () => {
-    if (!newMessage.trim()) return;
-
-    const message = {
-      id: Date.now().toString(),
-      user: account?.name || "You",
-      message: newMessage.trim(),
-      avatar: "ME",
-      timestamp: Date.now(),
-    };
-
-    setMessages((prev) => [...prev, message]);
-    setNewMessage("");
-
-    // Scroll to bottom
-    if (chatListRef.current) {
-      chatListRef.current?.scrollToEnd({ animated: true });
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !isChatLoggedIn) {
+      if (!isChatLoggedIn) {
+        Alert.alert("Not Logged In", "You need to be logged in to chat.");
+      }
+      return;
     }
 
-    resetControlsTimer();
+    try {
+      await sendChatMessage(newMessage.trim());
+      setNewMessage("");
+
+      // Scroll to bottom
+      if (chatListRef.current) {
+        chatListRef.current?.scrollToEnd({ animated: true });
+      }
+
+      resetControlsTimer();
+    } catch (error) {
+      console.error("Error sending message:", error);
+      Alert.alert("Error", "Failed to send message. Please try again.");
+    }
   };
 
   // Confirm leaving the stream
@@ -387,6 +520,50 @@ export default function LivestreamViewerScreen() {
     );
   };
 
+  // Handle chat reconnection
+  const handleReconnectChat = () => {
+    if (reconnectChat()) {
+      Alert.alert("Success", "Reconnected to chat successfully");
+    }
+  };
+
+  // Open products modal
+  const openProductsModal = useCallback(() => {
+    console.log("Opening products modal");
+    setProductsModalVisible(true);
+  }, []);
+
+  // Close products modal
+  const closeProductsModal = useCallback(() => {
+    console.log("Closing products modal");
+    setProductsModalVisible(false);
+  }, []);
+
+  // Handle cart button press
+  const handleCartButtonPress = () => {
+    console.log("Cart button pressed");
+    openProductsModal();
+  };
+
+  // Handle adding product to cart
+  const handleAddToCart = (product: IResponseProduct) => {
+    setCartItems((prev) => [...prev, product]);
+    Alert.alert("Success", `${product.name} added to cart!`);
+  };
+
+  // Handle buying product now
+  const handleBuyNow = (product: IResponseProduct) => {
+    Alert.alert("Buy Now", `Proceed to checkout for ${product.name}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Checkout",
+        onPress: () => {
+          Alert.alert("Success", `Order placed for ${product.name}!`);
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={styles.container} onTouchStart={resetControlsTimer}>
       <StatusBar hidden />
@@ -430,8 +607,21 @@ export default function LivestreamViewerScreen() {
         )}
       </View>
 
+      {/* Cart Button */}
+      {/* <TouchableOpacity
+        style={styles.cartButton}
+        onPress={handleCartButtonPress}
+      >
+        <Feather name="shopping-cart" size={24} color="#fff" />
+        {cartItems.length > 0 && (
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
+          </View>
+        )}
+      </TouchableOpacity> */}
+
       {/* Floating Chat Button (visible when chat is hidden) */}
-      {!isChatVisible && (
+      {/* {!isChatVisible && (
         <Animated.View style={[styles.chatButton, chatButtonStyle]}>
           <TouchableOpacity
             onPressIn={onChatButtonPressIn}
@@ -441,11 +631,11 @@ export default function LivestreamViewerScreen() {
           >
             <Feather name="message-circle" size={24} color="#fff" />
             <View style={styles.chatBadge}>
-              <Text style={styles.chatBadgeText}>{messages.length}</Text>
+              <Text style={styles.chatBadgeText}>{chatMessages.length}</Text>
             </View>
           </TouchableOpacity>
         </Animated.View>
-      )}
+      )} */}
 
       {/* Overlay Controls */}
       <Animated.View style={[styles.overlayControls, controlsStyle]}>
@@ -502,20 +692,20 @@ export default function LivestreamViewerScreen() {
               styles.controlButton,
               !isChatVisible && styles.controlButtonActive,
             ]}
+            onPressIn={onChatButtonPressIn}
+            onPressOut={onChatButtonPressOut}
             onPress={toggleChat}
           >
             <Feather name="message-circle" size={22} color="#fff" />
             <Text style={styles.controlButtonText}>Chat</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.controlButton} onPress={() => {}}>
-            <Feather name="heart" size={22} color="#fff" />
-            <Text style={styles.controlButtonText}>Like</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.controlButton} onPress={() => {}}>
-            <Feather name="share-2" size={22} color="#fff" />
-            <Text style={styles.controlButtonText}>Share</Text>
+          <TouchableOpacity
+            style={styles.controlButton}
+            onPress={handleCartButtonPress}
+          >
+            <Feather name="shopping-cart" size={22} color="#fff" />
+            <Text style={styles.controlButtonText}>Shop</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -525,6 +715,19 @@ export default function LivestreamViewerScreen() {
         <Animated.View style={[styles.chatContainer, chatContainerStyle]}>
           <View style={styles.chatHeader}>
             <Text style={styles.chatTitle}>Live Chat</Text>
+            <View style={styles.chatStatusContainer}>
+              {isChatInitialized ? (
+                isChatLoggedIn ? (
+                  <Text style={styles.chatStatusText}>Connected</Text>
+                ) : (
+                  <Text style={[styles.chatStatusText, styles.chatStatusError]}>
+                    Not logged in
+                  </Text>
+                )
+              ) : (
+                <Text style={styles.chatStatusText}>Initializing...</Text>
+              )}
+            </View>
             <TouchableOpacity
               onPress={toggleChat}
               style={styles.chatCloseButton}
@@ -533,11 +736,44 @@ export default function LivestreamViewerScreen() {
             </TouchableOpacity>
           </View>
 
+          {chatError && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{chatError}</Text>
+              <View style={styles.errorButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.errorButton}
+                  onPress={handleReconnectChat}
+                >
+                  <Text style={styles.errorButtonText}>Reconnect</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.errorButton}
+                  onPress={clearChatError}
+                >
+                  <Text style={styles.errorButtonText}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           <FlatList
             ref={chatListRef}
-            data={messages}
+            data={chatMessages}
             keyExtractor={(item) => item.id}
             style={styles.chatList}
+            inverted={false}
+            onEndReached={hasMoreMessages ? loadMoreMessages : undefined}
+            onEndReachedThreshold={0.3}
+            ListHeaderComponent={
+              isLoadingMore ? (
+                <View style={styles.loadingMoreContainer}>
+                  <ActivityIndicator size="small" color="#ffffff" />
+                  <Text style={styles.loadingMoreText}>
+                    Loading more messages...
+                  </Text>
+                </View>
+              ) : null
+            }
             renderItem={({ item }) => (
               <View style={styles.chatMessage}>
                 <View style={styles.avatarContainer}>
@@ -557,6 +793,13 @@ export default function LivestreamViewerScreen() {
             onContentSizeChange={() =>
               chatListRef.current?.scrollToEnd({ animated: true })
             }
+            ListEmptyComponent={
+              <View style={styles.emptyChat}>
+                <Text style={styles.emptyChatText}>
+                  No messages yet. Be the first to say something!
+                </Text>
+              </View>
+            }
           />
 
           <View style={styles.chatInputContainer}>
@@ -568,20 +811,31 @@ export default function LivestreamViewerScreen() {
               placeholderTextColor="#94a3b8"
               returnKeyType="send"
               onSubmitEditing={sendMessage}
+              editable={isChatLoggedIn}
             />
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                !newMessage.trim() && styles.sendButtonDisabled,
+                (!newMessage.trim() || !isChatLoggedIn || isChatSending) &&
+                  styles.sendButtonDisabled,
               ]}
               onPress={sendMessage}
-              disabled={!newMessage.trim()}
+              disabled={!newMessage.trim() || !isChatLoggedIn || isChatSending}
             >
               <Feather name="send" size={18} color="#fff" />
             </TouchableOpacity>
           </View>
         </Animated.View>
       )}
+
+      {/* Products Modal */}
+      <ProductsBottomSheet
+        visible={isProductsModalVisible}
+        onClose={closeProductsModal}
+        products={SAMPLE_PRODUCTS}
+        onAddToCart={handleAddToCart}
+        onBuyNow={handleBuyNow}
+      />
     </View>
   );
 }
@@ -806,6 +1060,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
+  chatStatusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  chatStatusText: {
+    color: "#4ade80",
+    fontSize: 12,
+  },
+  chatStatusError: {
+    color: "#ef4444",
+  },
   chatList: {
     flex: 1,
     padding: 16,
@@ -894,5 +1160,93 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 18,
     fontWeight: "600",
+  },
+  errorContainer: {
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    padding: 12,
+    margin: 12,
+    borderRadius: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  errorText: {
+    color: "#ffffff",
+    flex: 1,
+  },
+  errorButtonsContainer: {
+    flexDirection: "row",
+  },
+  errorButton: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  errorButtonText: {
+    color: "#ffffff",
+    fontSize: 12,
+  },
+  emptyChat: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  emptyChatText: {
+    color: "rgba(255, 255, 255, 0.5)",
+    textAlign: "center",
+  },
+  loadingMoreContainer: {
+    padding: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingMoreText: {
+    color: "#ffffff",
+    marginLeft: 8,
+    fontSize: 12,
+  },
+  cartButton: {
+    position: "absolute",
+    left: 16,
+    top: 80,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: myTheme.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  cartBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#ef4444",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  cartBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "bold",
   },
 });
