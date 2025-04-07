@@ -5,53 +5,68 @@ import {
   TouchableOpacity,
   Image,
   Platform,
+  TextInput,
 } from "react-native";
 import { Text } from "react-native-ui-lib";
 import { Feather } from "@expo/vector-icons";
 
 import { myTheme } from "@/constants/index";
-import { IResponseProduct } from "@/types/product";
+import type { IResponseProduct } from "@/types/product";
 
 interface ProductItemProps {
   product: IResponseProduct;
   isSelected: boolean;
   onSelect: (productId: string) => void;
+  discount?: number;
+  onDiscountChange?: (productId: string, discount: number) => void;
 }
 
 const ProductItem: React.FC<ProductItemProps> = ({
   product,
   isSelected,
   onSelect,
+  discount = 0,
+  onDiscountChange,
 }) => {
-  // Safety check - if product is undefined or null, render nothing
   if (!product) {
     console.error("ProductItem received undefined or null product");
     return null;
   }
 
-  // Get the product ID safely
   const productId = product.id || "";
 
-  // Get the product name safely
-  const productName = product.name || "Unnamed Product";
+  const productName = product.name || "Sản phẩm không tên";
 
-  // Get the main image URL or a placeholder
   const imageUrl =
     product.images && product.images.length > 0 && product.images[0].fileUrl
       ? product.images[0].fileUrl
       : "https://via.placeholder.com/60";
 
-  // Format price with currency
   const formattedPrice = product.price
-    ? `$${product.price.toFixed(2)}`
-    : "Price unavailable";
+    ? `${product.price.toLocaleString("vi-VN")}đ`
+    : "Chưa có giá";
 
-  // Get brand name safely
   const brandName = product.brand?.name || "";
 
-  // Get stock information if available
   const stockInfo =
-    product.quantity !== undefined ? `${product.quantity} in stock` : "";
+    product.quantity !== undefined ? `Còn ${product.quantity} sản phẩm` : "";
+
+  const displayDiscount = Math.round(discount * 100);
+
+  // Handle discount change
+  const handleDiscountChange = (text: string) => {
+    if (onDiscountChange) {
+      // Convert text to number (as percentage 0-100)
+      const percentValue = Number.parseInt(text, 10);
+      if (!isNaN(percentValue)) {
+        // Ensure it's between 0-100
+        const normalizedPercentValue = Math.min(Math.max(percentValue, 0), 100);
+        // Convert to 0-1 scale for storage and server
+        const decimalValue = normalizedPercentValue / 100;
+        onDiscountChange(productId, decimalValue);
+      }
+    }
+  };
 
   return (
     <TouchableOpacity
@@ -78,17 +93,21 @@ const ProductItem: React.FC<ProductItemProps> = ({
             {productName}
           </Text>
           {brandName && <Text style={styles.brand}>{brandName}</Text>}
-        </View>
 
-        {isSelected ? (
-          <View style={styles.selectedIndicator}>
-            <Text style={styles.selectedText}>Selected</Text>
-          </View>
-        ) : (
-          <View style={styles.selectButton}>
-            <Text style={styles.selectText}>Select</Text>
-          </View>
-        )}
+          {isSelected && (
+            <View style={styles.discountContainer}>
+              <Text style={styles.discountLabel}>Giảm giá (%):</Text>
+              <TextInput
+                style={styles.discountInput}
+                value={displayDiscount.toString()}
+                onChangeText={handleDiscountChange}
+                keyboardType="number-pad"
+                placeholder="0-100"
+                maxLength={3}
+              />
+            </View>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -184,30 +203,25 @@ const styles = StyleSheet.create({
     color: "#64748b",
     marginLeft: 4,
   },
-  selectedIndicator: {
-    backgroundColor: myTheme.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginLeft: 8,
+  discountContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
   },
-  selectedText: {
-    color: "#fff",
+  discountLabel: {
     fontSize: 12,
-    fontWeight: "600",
+    color: "#64748b",
+    marginRight: 4,
   },
-  selectButton: {
+  discountInput: {
     borderWidth: 1,
-    borderColor: myTheme.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginLeft: 8,
-  },
-  selectText: {
-    color: myTheme.primary,
+    borderColor: "#e2e8f0",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     fontSize: 12,
-    fontWeight: "600",
+    width: 60,
+    backgroundColor: "#fff",
   },
 });
 

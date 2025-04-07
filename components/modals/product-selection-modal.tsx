@@ -33,9 +33,11 @@ interface ProductSelectionModalProps {
   onClose: () => void;
   onConfirm: (
     selectedIds: string[],
-    selectedProducts: IResponseProduct[]
+    selectedProducts: IResponseProduct[],
+    productDiscounts: { [key: string]: number }
   ) => void;
   initialSelectedIds: string[];
+  initialDiscounts?: { [key: string]: number };
 }
 
 const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
@@ -43,11 +45,15 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
   onClose,
   onConfirm,
   initialSelectedIds,
+  initialDiscounts = {},
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [products, setProducts] = useState<IResponseProduct[]>([]);
   const [selectedProductIds, setSelectedProductIds] =
     useState<string[]>(initialSelectedIds);
+  const [productDiscounts, setProductDiscounts] = useState<{
+    [key: string]: number;
+  }>(initialDiscounts);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -59,6 +65,8 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
   const isInitialLoadRef = useRef(true);
   // Add a ref to track previous search query
   const prevSearchQueryRef = useRef("");
+  // Add a ref to track if modal was previously visible
+  const wasVisibleRef = useRef(false);
 
   // Make sure to add getFilteredProducts to the component
   const { getFilteredProducts } = useProducts();
@@ -83,7 +91,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
         const result = await getFilteredProducts({
           search: query,
           page: pageNum,
-          limit: 10,
+          limit: 10, // Increased limit to show more initial data
           // You can add more filter parameters as needed
           // sortBy: "createdAt",
           // order: "DESC",
@@ -116,32 +124,32 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
     [getFilteredProducts]
   );
 
+  // Immediate data fetch when modal becomes visible
+  useEffect(() => {
+    if (visible && (!wasVisibleRef.current || products.length === 0)) {
+      // Fetch data immediately when modal opens
+      fetchProductsData("", 1, false);
+      wasVisibleRef.current = true;
+    } else if (!visible) {
+      wasVisibleRef.current = false;
+    }
+  }, [visible, fetchProductsData]);
+
   // Combined effect for handling both initial load and search changes
   useEffect(() => {
-    // Only fetch data if the modal is visible
-    if (!visible) {
-      return;
-    }
-
-    // If this is the initial load when modal becomes visible
-    if (isInitialLoadRef.current && visible) {
-      isInitialLoadRef.current = false;
-      setPage(1);
-      fetchProductsData(searchQuery, 1, false);
-      prevSearchQueryRef.current = searchQuery;
+    // Only fetch data if the modal is visible and this is a search query change
+    if (!visible || searchQuery === prevSearchQueryRef.current) {
       return;
     }
 
     // For search query changes, use debounce
-    if (searchQuery !== prevSearchQueryRef.current) {
-      const delayDebounceFn = setTimeout(() => {
-        setPage(1);
-        fetchProductsData(searchQuery, 1, false);
-        prevSearchQueryRef.current = searchQuery;
-      }, 500);
+    const delayDebounceFn = setTimeout(() => {
+      setPage(1);
+      fetchProductsData(searchQuery, 1, false);
+      prevSearchQueryRef.current = searchQuery;
+    }, 500);
 
-      return () => clearTimeout(delayDebounceFn);
-    }
+    return () => clearTimeout(delayDebounceFn);
   }, [searchQuery, visible, fetchProductsData]);
 
   // Reset the initial load flag when modal closes
@@ -157,9 +165,24 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
       if (prev.includes(productId)) {
         return prev.filter((id) => id !== productId);
       } else {
+        // When adding a new product, initialize its discount to 0
+        if (!productDiscounts[productId]) {
+          setProductDiscounts((prev) => ({
+            ...prev,
+            [productId]: 0,
+          }));
+        }
         return [...prev, productId];
       }
     });
+  };
+
+  // Handle discount change
+  const handleDiscountChange = (productId: string, discount: number) => {
+    setProductDiscounts((prev) => ({
+      ...prev,
+      [productId]: discount,
+    }));
   };
 
   // Handle load more
@@ -187,11 +210,12 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
 
     // Log what we're sending back for debugging
     console.log(
-      `Confirming selection of ${selectedProductIds.length} products`
+      `Confirming selection of ${selectedProductIds.length} products with discounts`,
+      productDiscounts
     );
 
-    // Pass both IDs and full product objects back to the parent component
-    onConfirm(selectedProductIds, selectedProductObjects);
+    // Pass both IDs, full product objects, and discounts back to the parent component
+    onConfirm(selectedProductIds, selectedProductObjects, productDiscounts);
 
     // Close the modal after confirming
     onClose();
@@ -250,7 +274,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
           </View>
 
           {/* Content */}
-          <View style={styles.content}>
+          <View style={styles.contentWrapper}>
             {error && (
               <ErrorView
                 message={error}
@@ -269,13 +293,21 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
                 )}
                 <FlatList
                   data={products}
-                  renderItem={({ item }) => (
-                    <ProductItem
-                      product={item}
-                      isSelected={selectedProductIds.includes(item.id || "")}
-                      onSelect={toggleProductSelection}
-                    />
-                  )}
+                  renderItem={({ item }) => {
+                    const productId = item.id || "";
+                    const isSelected = selectedProductIds.includes(productId);
+                    const discount = productDiscounts[productId] || 0;
+
+                    return (
+                      <ProductItem
+                        product={item}
+                        isSelected={isSelected}
+                        onSelect={toggleProductSelection}
+                        discount={discount}
+                        onDiscountChange={handleDiscountChange}
+                      />
+                    );
+                  }}
                   keyExtractor={(item) => item.id || Math.random().toString()}
                   contentContainerStyle={styles.listContent}
                   showsVerticalScrollIndicator={false}
@@ -283,6 +315,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
                   ListFooterComponent={renderFooter}
                   onEndReached={handleLoadMore}
                   onEndReachedThreshold={0.5}
+                  style={styles.flatList}
                 />
               </>
             )}
@@ -313,6 +346,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     overflow: "hidden",
+    flexDirection: "column",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -347,6 +381,14 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
+  },
+  contentWrapper: {
+    backgroundColor: "#f8fafc",
+    maxHeight: height * 0.5, // Set a maximum height for the content area
+    minHeight: 200, // Set a minimum height to ensure visibility
+  },
+  flatList: {
+    flexGrow: 0, // Prevent the FlatList from expanding beyond its content
   },
   content: {
     backgroundColor: "#f8fafc",
