@@ -14,7 +14,7 @@ const useUserAuth = () => {
   const { firebaseToken, saveFirebaseToken } = useSession();
   const { createCustomToken } = useFirebase();
 
-  if (firebaseToken && !user) {
+  if (firebaseToken && !user && firebaseToken.length > 0) {
     firebaseAuth
       .signInWithCustomToken(firebaseToken)
       .then((result) => {
@@ -41,18 +41,6 @@ const useUserAuth = () => {
       }
     })();
   }, []);
-
-  // useEffect(() => {
-  //   if (firebaseToken) {
-  //     const subscriber = firebaseAuth.onAuthStateChanged((user) => {
-  //       if (!user) {
-  //         removeFirebaseToken()
-  //       }
-  //       setUser(user)
-  //     })
-  //     return subscriber
-  //   } // unsubscribe on unmount
-  // }, [firebaseToken, removeFirebaseToken])
 
   return { user, error };
 };

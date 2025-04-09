@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
@@ -158,6 +156,8 @@ export default function LivestreamViewerScreen() {
   const [newMessage, setNewMessage] = useState("");
   const [streamDuration, setStreamDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  // const [listProduct, setListProduct] = useState();
+
   const [currentToken, setCurrentToken] = useState<string | null>(null);
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const [tokenError, setTokenError] = useState(false);
@@ -828,7 +828,6 @@ export default function LivestreamViewerScreen() {
         </Animated.View>
       )}
 
-      {/* Products Modal */}
       <ProductsBottomSheet
         visible={isProductsModalVisible}
         onClose={closeProductsModal}

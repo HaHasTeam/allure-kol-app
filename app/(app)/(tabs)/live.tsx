@@ -25,8 +25,6 @@ import useLivestreams, {
   type LivestreamResponse,
 } from "@/hooks/api/useLivestreams";
 
-// Updated interface to match the actual API response
-
 export default function LiveScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -228,9 +226,10 @@ export default function LiveScreen() {
 
           {/* Start Button */}
           <TouchableOpacity
-            style={[styles.startButton, isPastEvent && styles.pastStartButton]}
+            // style={[styles.startButton, isPastEvent && styles.pastStartButton]}
+            style={[styles.startButton]}
             onPress={() => handleStartStream(item)}
-            disabled={isPastEvent}
+            // disabled={isPastEvent}
           >
             <Feather name="video" size={20} color="#fff" />
             <Text style={styles.startButtonText}>
