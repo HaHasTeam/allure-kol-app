@@ -9,6 +9,8 @@ import {
   ScrollView,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  ImageBackground,
+  StyleSheet,
 } from "react-native";
 import { Button, TextField, View } from "react-native-ui-lib";
 
@@ -28,14 +30,17 @@ import {
   width,
 } from "@/constants";
 import { log } from "@/utils/logger";
+
 export interface ILoginPayload {
   email: string;
   password: string;
 }
+
 export const formSignInSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(20),
 });
+
 const LoginScreen = () => {
   const { login } = useSession();
   const router = useRouter();
@@ -70,209 +75,270 @@ const LoginScreen = () => {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} keyboardVerticalOffset={100}>
-      <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-        <ScrollView
-          style={{
-            flexDirection: "column",
-            paddingHorizontal: 15,
-            backgroundColor: "#FFF",
-          }}
-        >
-          <MyText
-            text="Xin chào, mừng bạn quay trở lại!"
-            styleProps={{
-              fontSize: width < myDeviceWidth.sm ? 14 : 16,
-              textAlign: "left",
-              marginVertical: 24,
-            }}
-          />
-          <View style={{ position: "relative", marginVertical: 12 }}>
-            <MyText
-              text="Email"
-              styleProps={{
-                position: "absolute",
-                top: -10,
-                left: 1,
-                fontSize: 16,
-                textAlign: "left",
-              }}
-            />
-            <Controller
-              control={control}
-              name="email"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextField
-                  leadingAccessory={
-                    <Feather
-                      style={{
-                        position: "absolute",
-                        top: height < myDeviceHeight.sm ? 36 : 43,
-                        left: 15,
-                      }}
-                      name="mail"
-                      size={24}
-                      color={myTheme.primary}
-                    />
-                  }
-                  inputMode="email"
-                  maxLength={50}
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  placeholder="Email"
-                  placeholderTextColor="grey"
-                  fieldStyle={{
-                    paddingVertical: 20,
-                  }}
-                  style={{
-                    borderStyle: "solid",
-                    borderColor: errors.email ? "red" : myTheme.primary,
-                    borderWidth: 1,
-                    borderRadius: 7,
-                    height: height < myDeviceHeight.sm ? 60 : 70,
-                    paddingLeft: 55,
-                    paddingRight: 15,
-                    fontSize: 16,
-                    overflow: "hidden",
-                    fontFamily: myFontWeight.regular,
-                  }}
+    <ImageBackground
+      source={require("@/assets/images/banner-welcome.jpg")}
+      style={styles.backgroundImage}
+    >
+      <View style={styles.overlay}>
+        <KeyboardAvoidingView style={{ flex: 1 }} keyboardVerticalOffset={100}>
+          <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+            <ScrollView style={styles.scrollView}>
+              <View style={styles.headerContainer}>
+                <MyText text="Allure KOL" styleProps={styles.logoText} />
+                <MyText
+                  text="Đăng nhập để bắt đầu phiên livestream của bạn"
+                  styleProps={styles.welcomeText}
                 />
-              )}
-            />
-            {errors.email && (
-              <MyText
-                text={errors.email.message || ""}
-                styleProps={{ color: "red" }}
-              />
-            )}
-          </View>
-          <View style={{ position: "relative", marginVertical: 12 }}>
-            <MyText
-              text="Mật khẩu"
-              styleProps={{
-                position: "absolute",
-                top: -10,
-                left: 1,
-                fontSize: 16,
-                textAlign: "left",
-              }}
-            />
+              </View>
 
-            <Controller
-              control={control}
-              name="password"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextField
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  leadingAccessory={
-                    <Feather
-                      style={{
-                        position: "absolute",
-                        top: height < myDeviceHeight.sm ? 36 : 43,
-                        left: 15,
-                      }}
-                      name="lock"
-                      size={24}
-                      color={myTheme.primary}
-                    />
-                  }
-                  maxLength={50}
-                  trailingAccessory={
-                    <TouchableOpacity
-                      onPress={() => setIsShowPassword(!isShowPassword)}
-                      style={{
-                        padding: 10,
-                        position: "absolute",
-                        top: height < myDeviceHeight.sm ? 26 : 33,
-                        right: 10,
-                      }}
-                    >
-                      <Feather
-                        name={isShowPassword ? "eye" : "eye-off"}
-                        size={24}
-                        color="lightgray"
+              <View style={styles.formContainer}>
+                <View style={styles.inputContainer}>
+                  <MyText text="Email" styleProps={styles.labelText} />
+                  <Controller
+                    control={control}
+                    name="email"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextField
+                        leadingAccessory={
+                          <Feather
+                            style={styles.inputIcon}
+                            name="mail"
+                            size={24}
+                            color={myTheme.primary}
+                          />
+                        }
+                        inputMode="email"
+                        maxLength={50}
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value}
+                        placeholder="Nhập email của bạn"
+                        placeholderTextColor="grey"
+                        fieldStyle={styles.fieldStyle}
+                        style={[
+                          styles.inputField,
+                          {
+                            borderColor: errors.email ? "red" : myTheme.primary,
+                          },
+                        ]}
                       />
-                    </TouchableOpacity>
-                  }
-                  placeholder="Mật khẩu"
-                  placeholderTextColor="grey"
-                  multiline={false}
-                  secureTextEntry={!isShowPassword}
-                  fieldStyle={{
-                    paddingVertical: 20,
-                  }}
-                  style={{
-                    borderStyle: "solid",
-                    borderColor: errors.password ? "red" : myTheme.primary,
-                    borderWidth: 1,
-                    borderRadius: 7,
-                    height: height < myDeviceHeight.sm ? 60 : 70,
-                    paddingLeft: 55,
-                    paddingRight: 50,
-                    fontSize: 16,
-                    overflow: "hidden",
-                    fontFamily: myFontWeight.regular,
-                  }}
-                />
-              )}
-            />
-            {errors.password && (
-              <MyText
-                text={errors.password.message || ""}
-                styleProps={{ color: "red" }}
-              />
-            )}
-          </View>
-          <View style={{ marginTop: 12, gap: 24 }}>
-            <Button
-              onPress={handleSubmit(onSubmit)}
-              label="Đăng nhập"
-              size="large"
-              disabled={isLoading}
-              backgroundColor={myTheme.primary}
-              style={{
-                minWidth: "95%",
-                height: 48,
-                justifyContent: "center",
-              }}
-              labelStyle={{
-                fontFamily: myFontWeight.bold,
-                fontSize: 16,
-              }}
-            />
-            {errors.root && (
-              <MyText
-                text={errors.root.message || ""}
-                styleProps={{ color: "red", textAlign: "center" }}
-              />
-            )}
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "center",
-                gap: 2.5,
-              }}
-            >
-              <MyText styleProps={{ fontSize: 16 }} text="Chưa có tài khoản?" />
-              <MyLink
-                weight={myFontWeight.medium}
-                styleProps={{
-                  color: myTextColor.primary,
-                  fontSize: 16,
-                  marginBottom: 40,
-                }}
-                text="Đăng kí"
-                href="/register"
-              />
-            </View>
-          </View>
-        </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+                    )}
+                  />
+                  {errors.email && (
+                    <MyText
+                      text={errors.email.message || ""}
+                      styleProps={styles.errorText}
+                    />
+                  )}
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <MyText text="Mật khẩu" styleProps={styles.labelText} />
+                  <Controller
+                    control={control}
+                    name="password"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextField
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value}
+                        leadingAccessory={
+                          <Feather
+                            style={styles.inputIcon}
+                            name="lock"
+                            size={24}
+                            color={myTheme.primary}
+                          />
+                        }
+                        maxLength={50}
+                        trailingAccessory={
+                          <TouchableOpacity
+                            onPress={() => setIsShowPassword(!isShowPassword)}
+                            style={styles.eyeIcon}
+                          >
+                            <Feather
+                              name={isShowPassword ? "eye" : "eye-off"}
+                              size={24}
+                              color="lightgray"
+                            />
+                          </TouchableOpacity>
+                        }
+                        placeholder="Nhập mật khẩu của bạn"
+                        placeholderTextColor="grey"
+                        multiline={false}
+                        secureTextEntry={!isShowPassword}
+                        fieldStyle={styles.fieldStyle}
+                        style={[
+                          styles.inputField,
+                          {
+                            borderColor: errors.password
+                              ? "red"
+                              : myTheme.primary,
+                          },
+                        ]}
+                      />
+                    )}
+                  />
+                  {errors.password && (
+                    <MyText
+                      text={errors.password.message || ""}
+                      styleProps={styles.errorText}
+                    />
+                  )}
+                </View>
+
+                <View style={styles.buttonContainer}>
+                  <Button
+                    onPress={handleSubmit(onSubmit)}
+                    label="Đăng nhập"
+                    size="large"
+                    disabled={isLoading}
+                    backgroundColor={myTheme.primary}
+                    style={styles.loginButton}
+                    labelStyle={styles.buttonLabel}
+                  />
+                  {errors.root && (
+                    <MyText
+                      text={errors.root.message || ""}
+                      styleProps={styles.rootError}
+                    />
+                  )}
+                </View>
+
+                <View style={styles.footerContainer}>
+                  <MyText
+                    text="Dành riêng cho KOL livestream quảng cáo sản phẩm Allure"
+                    styleProps={styles.footerText}
+                  />
+                </View>
+              </View>
+            </ScrollView>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </View>
+    </ImageBackground>
   );
 };
+
+const styles = StyleSheet.create({
+  backgroundImage: {
+    width: width,
+    height: height,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+  },
+  scrollView: {
+    flexDirection: "column",
+    paddingHorizontal: 20,
+  },
+  headerContainer: {
+    alignItems: "center",
+    marginTop: height * 0.08,
+    marginBottom: 30,
+  },
+  logoText: {
+    fontSize: 36,
+    fontWeight: "bold",
+    color: myTheme.primary,
+    marginBottom: 16,
+  },
+  welcomeText: {
+    fontSize: width < myDeviceWidth.sm ? 16 : 18,
+    textAlign: "center",
+    marginBottom: 10,
+    color: "#555",
+  },
+  formContainer: {
+    backgroundColor: "white",
+    borderRadius: 15,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    marginBottom: 20,
+  },
+  inputContainer: {
+    position: "relative",
+    marginVertical: 12,
+  },
+  labelText: {
+    position: "absolute",
+    top: -10,
+    left: 12,
+    fontSize: 16,
+    textAlign: "left",
+    backgroundColor: "white",
+    paddingHorizontal: 5,
+    zIndex: 1,
+    color: myTheme.primary,
+  },
+  inputIcon: {
+    position: "absolute",
+    top: height < myDeviceHeight.sm ? 36 : 43,
+    left: 15,
+  },
+  eyeIcon: {
+    padding: 10,
+    position: "absolute",
+    top: height < myDeviceHeight.sm ? 26 : 33,
+    right: 10,
+  },
+  fieldStyle: {
+    paddingVertical: 20,
+  },
+  inputField: {
+    borderStyle: "solid",
+    borderWidth: 1,
+    borderRadius: 10,
+    height: height < myDeviceHeight.sm ? 60 : 70,
+    paddingLeft: 55,
+    paddingRight: 50,
+    fontSize: 16,
+    overflow: "hidden",
+    fontFamily: myFontWeight.regular,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+  },
+  errorText: {
+    color: "red",
+    marginTop: 5,
+    marginLeft: 5,
+  },
+  buttonContainer: {
+    marginTop: 25,
+    gap: 24,
+  },
+  loginButton: {
+    minWidth: "100%",
+    height: 55,
+    justifyContent: "center",
+    borderRadius: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  buttonLabel: {
+    fontFamily: myFontWeight.bold,
+    fontSize: 18,
+  },
+  rootError: {
+    color: "red",
+    textAlign: "center",
+  },
+  footerContainer: {
+    marginTop: 25,
+    alignItems: "center",
+  },
+  footerText: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+  },
+});
 
 export default LoginScreen;

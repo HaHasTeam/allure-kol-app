@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -14,77 +14,113 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
-import { RtcSurfaceView } from "react-native-agora";
-import { useAgoraRtcEngine } from "@/hooks/useAgoraRtc";
+import { RtcSurfaceView, ClientRoleType } from "react-native-agora";
 import { myTheme } from "@/constants/index";
 import { Card } from "react-native-ui-lib";
+import useLivestreams from "@/hooks/api/useLivestreams";
+import useUser from "@/hooks/api/useUser";
+import { useStreamPreparation } from "@/hooks/useStreamPreparation";
 
-// Mock data for testing - in a real app, this would come from your API
-const MOCK_TOKEN =
-  "007eJxTYJjxccK5H1cLT6jbt7M/k61+tjtkdsUzj5dGTIKPZJdff/VIgcHAIM00xcTY2Ng0Ockk0dDS0swyNc3cIinJwtLUNMUo+eKFi+kNgYwMm8W9mBgZIBDEZ2HIzczLYGAAACSeIjM=";
-const MOCK_CHANNEL = "minh";
-const MOCK_USER_ID = 432;
+// Agora App ID - replace with your actual App ID from config
+const AGORA_APP_ID = "00f5d43335cb4a19969ef78bb8955d2c";
 
 export default function StreamConfigScreen() {
+  const { getProfile } = useUser();
+  const [account, setAccount] = useState<{ id: string; name: string } | null>(
+    null
+  );
+
   const router = useRouter();
   const params = useLocalSearchParams();
   const [isLoading, setIsLoading] = useState(false);
-  const [isMicEnabled, setIsMicEnabled] = useState(true);
-  const [isCameraEnabled, setIsCameraEnabled] = useState(true);
-  const [isFrontCamera, setIsFrontCamera] = useState(true);
   const [streamTitle, setStreamTitle] = useState(
     (params.title as string) || ""
   );
   const [isStartingStream, setIsStartingStream] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const { getLivestreamToken } = useLivestreams();
 
   // Get livestream ID from params if available
   const livestreamId = params.id as string;
 
-  // Initialize Agora engine
+  // Fetch token when component mounts
+  useEffect(() => {
+    if (livestreamId) {
+      setIsLoading(true);
+      getLivestreamToken(
+        livestreamId,
+        ClientRoleType.ClientRoleBroadcaster,
+        3600
+      )
+        .then((tokenResult) => {
+          if (tokenResult) {
+            console.log("tokenResult", tokenResult);
+
+            setToken(tokenResult.data);
+            console.log("Token fetched successfully");
+          } else {
+            Alert.alert(
+              "Error",
+              "Failed to get streaming token. Please try again."
+            );
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching token:", error);
+          Alert.alert(
+            "Error",
+            "Failed to get streaming token. Please try again."
+          );
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    }
+  }, [livestreamId, getLivestreamToken]);
+
+  // Fetch user profile
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const data = await getProfile();
+        if (data && data.id) {
+          setAccount({
+            id: data.id,
+            name: data.email || "My Account",
+          });
+          console.log("account.id", data.id);
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        Alert.alert("Error", "Failed to load account information");
+      }
+    }
+
+    fetchProfile();
+  }, [getProfile]);
+
+  // Initialize the stream preparation hook with autoJoin=false
+  // This allows us to see the camera preview without joining the channel
   const {
-    rtcEngine,
-    rtcEngineReady,
-    didJoinChannel,
-    remoteUserID,
-    isRemoteAudioEnabled,
-    isRemoteVideoEnabled,
-  } = useAgoraRtcEngine({
-    userID: MOCK_USER_ID,
-    channel: MOCK_CHANNEL,
-    token: MOCK_TOKEN,
+    engine,
+    isInitialized,
+    joinChannelSuccess,
+    isMicEnabled,
+    isCameraEnabled,
+    isFrontCamera,
+    toggleMicrophone,
+    toggleCamera,
+    switchCamera,
+    joinChannel,
+    leaveChannel,
+  } = useStreamPreparation({
+    appId: AGORA_APP_ID,
+    channel: livestreamId,
+    token: token,
+    userId: account?.id || "0",
+    enableVideo: true,
+    autoJoin: false, // Don't join automatically, just initialize and show preview
   });
-
-  // Handle camera toggle
-  const toggleCamera = () => {
-    if (!rtcEngineReady) return;
-
-    if (isCameraEnabled) {
-      rtcEngine.muteLocalVideoStream(true);
-    } else {
-      rtcEngine.muteLocalVideoStream(false);
-    }
-    setIsCameraEnabled(!isCameraEnabled);
-  };
-
-  // Handle microphone toggle
-  const toggleMic = () => {
-    if (!rtcEngineReady) return;
-
-    if (isMicEnabled) {
-      rtcEngine.muteLocalAudioStream(true);
-    } else {
-      rtcEngine.muteLocalAudioStream(false);
-    }
-    setIsMicEnabled(!isMicEnabled);
-  };
-
-  // Handle camera flip
-  const switchCamera = () => {
-    if (!rtcEngineReady || !isCameraEnabled) return;
-
-    rtcEngine.switchCamera();
-    setIsFrontCamera(!isFrontCamera);
-  };
 
   // Handle starting the actual livestream
   const startLivestream = async () => {
@@ -93,15 +129,21 @@ export default function StreamConfigScreen() {
       return;
     }
 
+    if (!token) {
+      Alert.alert("Error", "Streaming token not available. Please try again.");
+      return;
+    }
+
     setIsStartingStream(true);
 
     try {
-      // In a real app, you would make an API call to update the livestream status
-      // For example:
-      // await updateLivestreamStatus(livestreamId, 'live', { title: streamTitle })
+      // Join the channel before navigating
+      if (!joinChannelSuccess) {
+        joinChannel();
+      }
 
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Wait a moment to ensure the channel is joined
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Navigate to the live streaming screen
       router.push({
@@ -109,9 +151,9 @@ export default function StreamConfigScreen() {
         params: {
           id: livestreamId,
           title: streamTitle,
-          channel: MOCK_CHANNEL,
-          token: MOCK_TOKEN,
-          userId: MOCK_USER_ID.toString(),
+          channel: livestreamId,
+          token: token,
+          userId: account?.id || "0",
         },
       });
     } catch (error) {
@@ -132,7 +174,10 @@ export default function StreamConfigScreen() {
         {
           text: "Yes",
           style: "destructive",
-          onPress: () => router.back(),
+          onPress: () => {
+            leaveChannel();
+            router.back();
+          },
         },
       ]
     );
@@ -151,7 +196,12 @@ export default function StreamConfigScreen() {
       <ScrollView style={styles.content}>
         {/* Camera Preview */}
         <View style={styles.previewContainer}>
-          {rtcEngineReady && didJoinChannel ? (
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={myTheme.primary} />
+              <Text style={styles.loadingText}>Preparing stream...</Text>
+            </View>
+          ) : isInitialized ? (
             isCameraEnabled ? (
               <RtcSurfaceView style={styles.videoView} canvas={{ uid: 0 }} />
             ) : (
@@ -169,7 +219,14 @@ export default function StreamConfigScreen() {
 
           {/* Camera Controls */}
           <View style={styles.cameraControls}>
-            <TouchableOpacity style={styles.controlButton} onPress={toggleMic}>
+            <TouchableOpacity
+              style={[
+                styles.controlButton,
+                (isLoading || !isInitialized) && styles.disabledButton,
+              ]}
+              onPress={toggleMicrophone}
+              disabled={isLoading || !isInitialized}
+            >
               {isMicEnabled ? (
                 <Feather name="mic" size={20} color="#fff" />
               ) : (
@@ -178,8 +235,12 @@ export default function StreamConfigScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.controlButton}
+              style={[
+                styles.controlButton,
+                (isLoading || !isInitialized) && styles.disabledButton,
+              ]}
               onPress={toggleCamera}
+              disabled={isLoading || !isInitialized}
             >
               {isCameraEnabled ? (
                 <Feather name="video" size={20} color="#fff" />
@@ -191,10 +252,11 @@ export default function StreamConfigScreen() {
             <TouchableOpacity
               style={[
                 styles.controlButton,
-                !isCameraEnabled && styles.disabledButton,
+                (!isCameraEnabled || isLoading || !isInitialized) &&
+                  styles.disabledButton,
               ]}
               onPress={switchCamera}
-              disabled={!isCameraEnabled}
+              disabled={!isCameraEnabled || isLoading || !isInitialized}
             >
               <Feather name="refresh-cw" size={20} color="#fff" />
             </TouchableOpacity>
@@ -245,10 +307,11 @@ export default function StreamConfigScreen() {
         <TouchableOpacity
           style={[
             styles.goLiveButton,
-            (!rtcEngineReady || isStartingStream) && styles.disabledButton,
+            (isLoading || !isInitialized || !token || isStartingStream) &&
+              styles.disabledButton,
           ]}
           onPress={startLivestream}
-          disabled={!rtcEngineReady || isStartingStream}
+          disabled={isLoading || !isInitialized || !token || isStartingStream}
         >
           {isStartingStream ? (
             <ActivityIndicator color="#fff" />

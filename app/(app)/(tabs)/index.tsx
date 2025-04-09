@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   ScrollView,
   View,
   TouchableOpacity,
   Platform,
+  FlatList,
+  Image,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Text, Card, Button, Avatar, ProgressBar } from "react-native-ui-lib";
@@ -20,6 +24,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { myTheme } from "@/constants/index";
 
+// Add useLivestreams import
+import useLivestreams from "@/hooks/api/useLivestreams";
+import type { LivestreamResponse } from "@/hooks/api/useLivestreams";
+
 // Key for storing welcome banner preference
 const WELCOME_BANNER_KEY = "allure_welcome_banner_dismissed";
 
@@ -28,6 +36,13 @@ export default function KOLHomePage() {
   const [isFirstLogin, setIsFirstLogin] = useState(true);
   const [hasScheduledStreams, setHasScheduledStreams] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Add livestream state variables to the component
+  const [livestreams, setLivestreams] = useState<LivestreamResponse[]>([]);
+  const [isLoadingLivestreams, setIsLoadingLivestreams] = useState(true);
+  const [isRefreshingLivestreams, setIsRefreshingLivestreams] = useState(false);
+  const [livestreamError, setLivestreamError] = useState<string | null>(null);
+  const { getLivestreams } = useLivestreams();
 
   // Animation for buttons
   const buttonScale = useSharedValue(1);
@@ -86,6 +101,96 @@ export default function KOLHomePage() {
       console.error("Error saving welcome banner preference:", error);
     }
   };
+
+  // Add fetchLivestreams function after the dismissWelcome function
+  const fetchLivestreams = useCallback(
+    async (showRefreshing = false) => {
+      if (showRefreshing) {
+        setIsRefreshingLivestreams(true);
+      } else {
+        setIsLoadingLivestreams(true);
+      }
+
+      setLivestreamError(null);
+
+      try {
+        // Get only live streams
+        const result = await getLivestreams({});
+
+        if (result && result.data && result.data.data) {
+          setLivestreams(result.data.data);
+        } else {
+          setLivestreamError("Failed to load livestreams");
+        }
+      } catch (error) {
+        console.error("Error fetching livestreams:", error);
+        setLivestreamError("An error occurred while loading livestreams");
+      } finally {
+        setIsLoadingLivestreams(false);
+        setIsRefreshingLivestreams(false);
+      }
+    },
+    [getLivestreams]
+  );
+
+  // Add useEffect to fetch livestreams on component mount
+  useEffect(() => {
+    fetchLivestreams();
+  }, [fetchLivestreams]);
+
+  // Add function to navigate to livestream viewer
+  const goToLivestream = (livestream: LivestreamResponse) => {
+    router.push({
+      pathname: "/(app)/(livestream)/livestream-viewer-screen",
+      params: {
+        id: livestream.id,
+        title: livestream.title,
+      },
+    });
+  };
+
+  // Add formatDate function
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
+
+  // Add renderLivestreamItem function
+  const renderLivestreamItem = ({ item }: { item: LivestreamResponse }) => (
+    <TouchableOpacity
+      style={styles.livestreamCard}
+      onPress={() => goToLivestream(item)}
+    >
+      <View style={styles.thumbnailContainer}>
+        {item.thumbnail ? (
+          <Image source={{ uri: item.thumbnail }} style={styles.thumbnail} />
+        ) : (
+          <View style={styles.placeholderThumbnail}>
+            <Feather name="video" size={32} color="#94a3b8" />
+          </View>
+        )}
+        <View style={styles.liveIndicator}>
+          <Text style={styles.liveText}>LIVE</Text>
+        </View>
+      </View>
+
+      <View style={styles.livestreamInfo}>
+        <Text style={styles.livestreamTitle} numberOfLines={1}>
+          {item.title}
+        </Text>
+        <Text style={styles.livestreamTime}>
+          Started: {formatDate(item.startTime)}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={styles.joinButton}
+        onPress={() => goToLivestream(item)}
+      >
+        <Text style={styles.joinButtonText}>Join</Text>
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
 
   if (loading) {
     return (
@@ -328,18 +433,66 @@ export default function KOLHomePage() {
               </View>
             </View>
           </View>
+        </Card>
 
-          <TouchableOpacity
+        {/* Available Livestreams */}
+        <Card style={styles.card}>
+          <Text style={styles.cardTitle}>Available Livestreams</Text>
+          <Text style={styles.cardSubtitle}>
+            Join other creators' livestreams
+          </Text>
+
+          {isLoadingLivestreams && !isRefreshingLivestreams ? (
+            <View style={styles.loadingLivestreamsContainer}>
+              <ActivityIndicator size="large" color={myTheme.primary} />
+            </View>
+          ) : livestreamError ? (
+            <View style={styles.errorContainer}>
+              <Feather name="alert-circle" size={32} color="#ef4444" />
+              <Text style={styles.errorText}>{livestreamError}</Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => fetchLivestreams()}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : livestreams.length === 0 ? (
+            <View style={styles.emptyLivestreamsContainer}>
+              <Feather name="video-off" size={32} color="#94a3b8" />
+              <Text style={styles.emptyText}>
+                No livestreams currently available
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={livestreams}
+              keyExtractor={(item) => item.id}
+              renderItem={renderLivestreamItem}
+              style={styles.livestreamList}
+              nestedScrollEnabled={true}
+              scrollEnabled={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefreshingLivestreams}
+                  onRefresh={() => fetchLivestreams(true)}
+                  colors={[myTheme.primary]}
+                />
+              }
+            />
+          )}
+
+          {/* <TouchableOpacity
             style={styles.viewAllButton}
-            onPress={() => router.push("/(app)/analytics")}
+            onPress={() => router.push("/(app)/(livestream)/livestream-list")}
           >
-            <Text style={styles.viewAllText}>View detailed analytics</Text>
+            <Text style={styles.viewAllText}>View all livestreams</Text>
             <Feather
               name="chevron-right"
               size={16}
               color={myTheme.textColorLight}
             />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </Card>
 
         {/* Tips for success */}
@@ -369,18 +522,6 @@ export default function KOLHomePage() {
               </Text>
             </View>
           </View>
-
-          <TouchableOpacity
-            style={styles.viewAllButton}
-            onPress={() => router.push("/(app)/resources")}
-          >
-            <Text style={styles.viewAllText}>View all resources</Text>
-            <Feather
-              name="chevron-right"
-              size={16}
-              color={myTheme.textColorLight}
-            />
-          </TouchableOpacity>
         </Card>
 
         {/* Create livestream button */}
@@ -722,5 +863,111 @@ const styles = StyleSheet.create({
         elevation: 4,
       },
     }),
+  },
+  loadingLivestreamsContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    height: 200,
+  },
+  errorContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    height: 200,
+  },
+  errorText: {
+    fontSize: 14,
+    color: "#64748b",
+    textAlign: "center",
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  liveIndicator: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  liveText: {
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  retryButton: {
+    backgroundColor: myTheme.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
+  },
+  emptyLivestreamsContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    height: 150,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#64748b",
+    textAlign: "center",
+    marginTop: 12,
+  },
+  livestreamList: {
+    marginBottom: 8,
+  },
+  livestreamCard: {
+    backgroundColor: "#f1f5f9",
+    borderRadius: 8,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  thumbnailContainer: {
+    position: "relative",
+    height: 120,
+  },
+  thumbnail: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  placeholderThumbnail: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#e2e8f0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  livestreamInfo: {
+    padding: 12,
+  },
+  livestreamTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: myTheme.textColor,
+    marginBottom: 4,
+  },
+  livestreamTime: {
+    fontSize: 14,
+    color: myTheme.textColorLight,
+  },
+  joinButton: {
+    backgroundColor: myTheme.primary,
+    margin: 12,
+    marginTop: 0,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  joinButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });

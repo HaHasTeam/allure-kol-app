@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
@@ -14,10 +12,11 @@ import {
   Platform,
   StatusBar,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import type { FlatList as FlatListType } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { RtcSurfaceView, ClientRoleType } from "react-native-agora";
 import Animated, {
   useSharedValue,
@@ -27,20 +26,15 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { myTheme } from "@/constants/index";
-import { useStreamPreparation } from "@/hooks/useStreamPreparation";
-import { refreshAgoraToken } from "@/utils/token-refresh";
+import { useViewerStreamAttachment } from "@/hooks/useViewerStreamAttachment";
 import useLivestreams from "@/hooks/api/useLivestreams";
 import { log } from "@/utils/logger";
-import config from "@/constants/agora.config";
+import useUser from "@/hooks/api/useUser";
 import { useFirebaseChat } from "@/hooks/useFirebaseChat";
 import ProductsBottomSheet from "@/components/product-bottom-sheet";
 import type { IResponseProduct } from "@/types/product";
-import { useStreamAttachment } from "@/hooks/useStreamAttachment";
 
 const { width, height } = Dimensions.get("window");
-
-// Token refresh interval in milliseconds (refresh every 30 minutes)
-const TOKEN_REFRESH_INTERVAL = 30 * 60 * 1000;
 
 // Sample products data
 const SAMPLE_PRODUCTS: IResponseProduct[] = [
@@ -155,19 +149,39 @@ const SAMPLE_PRODUCTS: IResponseProduct[] = [
   },
 ];
 
-export default function LiveStreamingScreen() {
+export default function LivestreamViewerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const livestreamId = params.id as string;
-  const streamTitle = params.title as string;
-  const channel = params.channel as string;
-  const userId = params.userId as string;
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [newMessage, setNewMessage] = useState("");
+  const [streamDuration, setStreamDuration] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  // const [listProduct, setListProduct] = useState();
+
+  const [currentToken, setCurrentToken] = useState<string | null>(null);
+  const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [tokenError, setTokenError] = useState(false);
+  const [streamInfo, setStreamInfo] = useState<{
+    title: string;
+    hostName: string;
+    hostAvatar?: string;
+  }>({
+    title: (params.title as string) || "Live Stream",
+    hostName: "Host",
+    hostAvatar: undefined,
+  });
+  const [account, setAccount] = useState<{ id: string; name: string } | null>(
+    null
+  );
   const [cartItems, setCartItems] = useState<IResponseProduct[]>([]);
 
   // Products modal visibility state
   const [isProductsModalVisible, setProductsModalVisible] = useState(false);
+
+  // Get params
+  const livestreamId = params.id as string;
+  const { getLivestreamToken, getLivestreamById } = useLivestreams();
+  const { getProfile } = useUser();
 
   // Use Firebase chat hook
   const {
@@ -184,14 +198,6 @@ export default function LiveStreamingScreen() {
     reconnect: reconnectChat,
   } = useFirebaseChat(livestreamId);
 
-  const [streamDuration, setStreamDuration] = useState(0);
-  const [isEndingStream, setIsEndingStream] = useState(false);
-  const [currentToken, setCurrentToken] = useState<string | null>(
-    params.token as string
-  );
-  const [isRefreshingToken, setIsRefreshingToken] = useState(false);
-  const [tokenError, setTokenError] = useState(false);
-
   const chatListRef = useRef<
     FlatListType<{
       id: string;
@@ -203,140 +209,101 @@ export default function LiveStreamingScreen() {
   >(null);
 
   // Animation values
-  const chatWidth = useSharedValue(width);
+  const chatWidth = useSharedValue(width * 0.85);
   const chatOpacity = useSharedValue(1);
   const controlsOpacity = useSharedValue(1);
   const fabScale = useSharedValue(1);
 
-  // Get params
-  const { getLivestreamToken } = useLivestreams();
+  // Function to refresh the token
+  const handleTokenRefresh = useCallback(() => {
+    Alert.alert(
+      "Token Expired",
+      "Your viewing session has expired. Please exit and rejoin the stream.",
+      [{ text: "OK" }]
+    );
+    setTokenError(true);
+    setIsRefreshingToken(false);
+  }, []);
 
-  // Token refresh timer
-  const tokenRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Fetch user profile
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const data = await getProfile();
+        if (data && data.id) {
+          setAccount({
+            id: data.id,
+            name: data.email || "Viewer",
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      }
+    }
 
-  // Initialize Agora engine with our improved hook
+    fetchProfile();
+  }, [getProfile]);
+
+  // Fetch livestream info and token
+  useEffect(() => {
+    async function fetchLivestreamData() {
+      setIsLoading(true);
+      try {
+        // Fetch livestream details
+        const livestreamData = await getLivestreamById(livestreamId);
+        if (livestreamData) {
+          setStreamInfo({
+            title: livestreamData.title || "Live Stream",
+            hostName: "Host", // You might want to fetch host info from your API
+            hostAvatar: undefined,
+          });
+        }
+
+        // Fetch token
+        const tokenResult = await getLivestreamToken(
+          livestreamId,
+          ClientRoleType.ClientRoleAudience,
+          3600
+        );
+
+        if (tokenResult && tokenResult.data) {
+          // Fallback in case the structure is different
+          setCurrentToken(tokenResult.data);
+        } else {
+          setTokenError(true);
+          Alert.alert(
+            "Error",
+            "Failed to get streaming token. Please try again."
+          );
+        }
+      } catch (error) {
+        console.error("Error fetching livestream data:", error);
+        Alert.alert("Error", "Failed to load livestream. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchLivestreamData();
+  }, [livestreamId, getLivestreamById, getLivestreamToken]);
+
+  // Initialize the viewer stream hook with attachment for viewer count
   const {
     engine,
     isInitialized,
     joinChannelSuccess,
-    isMicEnabled,
-    isCameraEnabled,
-    toggleMicrophone,
-    toggleCamera,
-    switchCamera,
+    hostUid,
+    isHostVideoEnabled,
+    isHostAudioEnabled,
     joinChannel,
     leaveChannel,
-  } = useStreamPreparation({
-    appId: config.appId, // Replace with your Agora App ID
-    channel: channel,
+    viewerCount,
+  } = useViewerStreamAttachment({
+    appId: "00f5d43335cb4a19969ef78bb8955d2c", // Replace with your Agora App ID
+    channel: livestreamId,
     token: currentToken,
-    userId: userId,
-    enableVideo: true,
-    autoJoin: true, // Auto join for the live screen
+    userId: account?.id || "viewer",
   });
-
-  // Use the stream attachment hook to track viewer count
-  const { viewerCount, refreshViewerCount } = useStreamAttachment(
-    engine,
-    channel,
-    isInitialized,
-    joinChannelSuccess
-  );
-
-  // Function to refresh the token
-  const handleTokenRefresh = useCallback(async () => {
-    console.log("newToken");
-
-    setIsRefreshingToken(true);
-    setTokenError(false);
-
-    try {
-      const newToken = await refreshAgoraToken(
-        livestreamId,
-        ClientRoleType.ClientRoleBroadcaster,
-        3600,
-        getLivestreamToken
-      );
-      console.log("newToken", newToken);
-
-      if (newToken) {
-        log.info("Successfully refreshed token");
-        setCurrentToken(newToken);
-
-        // If we're already connected, we need to renew the token in the engine
-        if (isInitialized && engine) {
-          const res = engine.renewToken(newToken);
-          log.info("Token renewed in Agora engine", res);
-        } else if (isInitialized && !joinChannelSuccess) {
-          // If we're initialized but not connected, try to join with the new token
-          joinChannel();
-        }
-      } else {
-        log.error("Failed to refresh token");
-        setTokenError(true);
-        Alert.alert(
-          "Token Error",
-          "Failed to refresh streaming token. The stream may end soon.",
-          [{ text: "OK" }]
-        );
-      }
-    } catch (error) {
-      log.error("Error in token refresh:", error);
-      setTokenError(true);
-    } finally {
-      setIsRefreshingToken(false);
-    }
-  }, [
-    isRefreshingToken,
-    livestreamId,
-    getLivestreamToken,
-    isInitialized,
-    engine,
-    joinChannelSuccess,
-    joinChannel,
-  ]);
-
-  /**
-   * Proactively refresh the token before it expires
-   * Agora tokens typically expire after the time specified when generating them (default 3600 seconds)
-   * We'll refresh 5 minutes before expiration to be safe
-   */
-  const setupTokenRefreshSchedule = useCallback(() => {
-    // Clear any existing refresh timer
-    if (tokenRefreshTimerRef.current) {
-      clearInterval(tokenRefreshTimerRef.current);
-    }
-
-    // Set up a new refresh timer - refresh every 55 minutes (if token expiration is 60 minutes)
-    // This gives a 5-minute buffer before the token actually expires
-    const REFRESH_INTERVAL = 55 * 60 * 1000; // 55 minutes in milliseconds
-
-    tokenRefreshTimerRef.current = setInterval(() => {
-      log.info("Proactively refreshing token before expiration");
-      handleTokenRefresh();
-    }, REFRESH_INTERVAL);
-
-    return () => {
-      if (tokenRefreshTimerRef.current) {
-        clearInterval(tokenRefreshTimerRef.current);
-      }
-    };
-  }, [handleTokenRefresh]);
-
-  // Set up token refresh interval
-  useEffect(() => {
-    // Initial token refresh timer
-    tokenRefreshTimerRef.current = setInterval(
-      handleTokenRefresh,
-      TOKEN_REFRESH_INTERVAL
-    );
-
-    return () => {
-      if (tokenRefreshTimerRef.current) {
-        clearInterval(tokenRefreshTimerRef.current);
-      }
-    };
-  }, [handleTokenRefresh]);
 
   // Handle token errors from Agora
   useEffect(() => {
@@ -347,20 +314,25 @@ export default function LiveStreamingScreen() {
         // Error codes related to token expiration
         // 109: token expired
         // 110: token invalid
-        if (errorCode == 109 || errorCode == 110) {
-          log.warn("Token expired or invalid, refreshing...");
-          handleTokenRefresh();
+        if (errorCode === 109 || errorCode === 110) {
+          log.warn("Token expired or invalid");
+          Alert.alert(
+            "Connection Error",
+            "Your viewing session has expired. Please exit and rejoin the stream.",
+            [{ text: "OK" }]
+          );
+          setTokenError(true);
         }
       };
 
-      // Add error listener
+      //   Add error listener
       engine.addListener("onError", handleError);
 
       return () => {
         engine.removeListener("onError", handleError);
       };
     }
-  }, [isInitialized, engine, handleTokenRefresh]);
+  }, [isInitialized, engine]);
 
   // Timer for stream duration
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -380,25 +352,39 @@ export default function LiveStreamingScreen() {
     }, 5000);
   };
 
-  // Update the useEffect that sets up timers to include the token refresh schedule
+  // Refresh viewer count periodically
+  useEffect(() => {
+    if (joinChannelSuccess) {
+      // Initial refresh
+      // refreshViewerCount()
+      // Set up interval to refresh viewer count
+      // const intervalId = setInterval(() => {
+      //   refreshViewerCount()
+      // }, 10000) // Refresh every 10 seconds
+      // return () => {
+      //   clearInterval(intervalId)
+      // }
+    }
+  }, [joinChannelSuccess]);
+
   useEffect(() => {
     // Start timer for stream duration
     timerRef.current = setInterval(() => {
       setStreamDuration((prev) => prev + 1);
     }, 1000);
 
-    // Set up token refresh schedule
-    const cleanupTokenRefresh = setupTokenRefreshSchedule();
-
     // Handle back button press
     const backHandler = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
         // Prevent going back with hardware button
-        confirmEndStream();
+        confirmLeaveStream();
         return true;
       }
     );
+
+    // Initialize controls timer
+    resetControlsTimer();
 
     return () => {
       if (timerRef.current) {
@@ -407,10 +393,10 @@ export default function LiveStreamingScreen() {
       if (controlsTimerRef.current) {
         clearTimeout(controlsTimerRef.current);
       }
-      cleanupTokenRefresh();
+
       backHandler.remove();
     };
-  }, [setupTokenRefreshSchedule]);
+  }, []);
 
   // Toggle chat visibility
   const toggleChat = () => {
@@ -422,7 +408,7 @@ export default function LiveStreamingScreen() {
     } else {
       // Show chat
       setIsChatVisible(true);
-      chatWidth.value = withTiming(width, { duration: 300 });
+      chatWidth.value = withTiming(width * 0.85, { duration: 300 });
       chatOpacity.value = withTiming(1, { duration: 300 });
     }
     resetControlsTimer();
@@ -451,7 +437,7 @@ export default function LiveStreamingScreen() {
     }
   };
 
-  // Send message function
+  // Send a chat message
   const sendMessage = async () => {
     if (!newMessage.trim() || !isChatLoggedIn) {
       if (!isChatLoggedIn) {
@@ -476,46 +462,24 @@ export default function LiveStreamingScreen() {
     }
   };
 
-  // Confirm ending the stream
-  const confirmEndStream = () => {
-    Alert.alert("End Stream", "Are you sure you want to end your livestream?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "End Stream", style: "destructive", onPress: endStream },
-    ]);
+  // Confirm leaving the stream
+  const confirmLeaveStream = () => {
+    Alert.alert(
+      "Leave Stream",
+      "Are you sure you want to leave this livestream?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Leave", style: "destructive", onPress: leaveStream },
+      ]
+    );
   };
 
-  // End the livestream
-  const endStream = async () => {
-    setIsEndingStream(true);
-
-    try {
-      // In a real app, you would make an API call to update the livestream status
-      // For example:
-      // await updateLivestreamStatus(livestreamId, 'ended')
-
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Clean up Agora connection
-      if (isInitialized) {
-        leaveChannel();
-      }
-
-      // Navigate to stream summary
-      router.replace({
-        pathname: "/(app)/(livestream)/stream-summary",
-        params: {
-          id: livestreamId,
-          title: streamTitle,
-          duration: streamDuration.toString(),
-          viewers: viewerCount.toString(),
-        },
-      });
-    } catch (error) {
-      console.error("Error ending livestream:", error);
-      Alert.alert("Error", "Failed to end livestream. Please try again.");
-      setIsEndingStream(false);
+  // Leave the livestream
+  const leaveStream = () => {
+    if (isInitialized) {
+      leaveChannel();
     }
+    router.back();
   };
 
   // Animated styles
@@ -549,7 +513,11 @@ export default function LiveStreamingScreen() {
 
   // Manual token refresh button handler
   const onManualTokenRefresh = () => {
-    handleTokenRefresh();
+    Alert.alert(
+      "Session Expired",
+      "Your viewing session has expired. Please exit and rejoin the stream.",
+      [{ text: "OK", onPress: () => router.back() }]
+    );
   };
 
   // Handle chat reconnection
@@ -602,23 +570,29 @@ export default function LiveStreamingScreen() {
 
       {/* Video Stream */}
       <View style={styles.videoContainer}>
-        {isInitialized && !tokenError ? (
-          isCameraEnabled ? (
-            <RtcSurfaceView style={styles.videoView} canvas={{ uid: 0 }} />
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={myTheme.primary} />
+            <Text style={styles.loadingText}>Loading stream...</Text>
+          </View>
+        ) : isInitialized ? (
+          isHostVideoEnabled ? (
+            <RtcSurfaceView
+              style={styles.videoView}
+              canvas={{ uid: hostUid || 0 }}
+            />
           ) : (
-            <View style={styles.cameraOffContainer}>
-              <Feather name="video-off" size={48} color="#94a3b8" />
-              <Text style={styles.cameraOffText}>Camera is turned off</Text>
+            <View style={styles.hostOfflineContainer}>
+              <MaterialIcons name="videocam-off" size={48} color="#94a3b8" />
+              <Text style={styles.hostOfflineText}>Host camera is off</Text>
             </View>
           )
         ) : (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>
               {tokenError
-                ? "Token error. Tap to refresh."
-                : isRefreshingToken
-                ? "Refreshing token..."
-                : "Connecting to stream..."}
+                ? "Session expired. Please exit and rejoin."
+                : "Waiting for host..."}
             </Text>
             {tokenError && (
               <TouchableOpacity
@@ -634,19 +608,17 @@ export default function LiveStreamingScreen() {
       </View>
 
       {/* Cart Button */}
-      <Animated.View style={[styles.chatButton]}>
-        <TouchableOpacity
-          style={styles.chatButtonInner}
-          onPress={handleCartButtonPress}
-        >
-          <Feather name="shopping-cart" size={24} color="#fff" />
-          {cartItems.length > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </Animated.View>
+      {/* <TouchableOpacity
+        style={styles.cartButton}
+        onPress={handleCartButtonPress}
+      >
+        <Feather name="shopping-cart" size={24} color="#fff" />
+        {cartItems.length > 0 && (
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
+          </View>
+        )}
+      </TouchableOpacity> */}
 
       {/* Floating Chat Button (visible when chat is hidden) */}
       {/* {!isChatVisible && (
@@ -669,7 +641,14 @@ export default function LiveStreamingScreen() {
       <Animated.View style={[styles.overlayControls, controlsStyle]}>
         {/* Top Row: Header with info */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
+          <TouchableOpacity
+            onPress={confirmLeaveStream}
+            style={styles.backButton}
+          >
+            <Feather name="arrow-left" size={24} color="#fff" />
+          </TouchableOpacity>
+
+          <View style={styles.headerInfo}>
             <View style={styles.liveIndicator}>
               <Text style={styles.liveText}>LIVE</Text>
             </View>
@@ -678,81 +657,56 @@ export default function LiveStreamingScreen() {
             </Text>
           </View>
 
-          <Text style={styles.titleText} numberOfLines={1}>
-            {streamTitle}
-          </Text>
+          <View style={styles.viewerContainer}>
+            <Feather name="eye" size={14} color="#fff" />
+            <Text style={styles.viewerCount}>{viewerCount}</Text>
+          </View>
+        </View>
 
-          <View style={styles.headerRight}>
-            <View style={styles.viewerContainer}>
-              <Feather name="eye" size={14} color="#fff" />
-              <Text style={styles.viewerCount}>{viewerCount}</Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.endButton}
-              onPress={confirmEndStream}
-              disabled={isEndingStream}
-            >
-              {isEndingStream ? (
-                <Text style={styles.endButtonText}>Ending...</Text>
-              ) : (
-                <Text style={styles.endButtonText}>End</Text>
-              )}
-            </TouchableOpacity>
+        {/* Host Info */}
+        <View style={styles.hostInfoContainer}>
+          <View style={styles.hostAvatarContainer}>
+            {streamInfo.hostAvatar ? (
+              <Image
+                source={{ uri: streamInfo.hostAvatar }}
+                style={styles.hostAvatar}
+              />
+            ) : (
+              <Text style={styles.hostAvatarText}>
+                {streamInfo.hostName.charAt(0)}
+              </Text>
+            )}
+          </View>
+          <View style={styles.hostTextContainer}>
+            <Text style={styles.hostName}>{streamInfo.hostName}</Text>
+            <Text style={styles.streamTitle} numberOfLines={1}>
+              {streamInfo.title}
+            </Text>
           </View>
         </View>
 
         {/* Bottom Controls */}
         <View style={styles.bottomControls}>
-          <View style={styles.controlsRow}>
-            <TouchableOpacity
-              style={[
-                styles.controlButton,
-                !isMicEnabled && styles.controlButtonActive,
-              ]}
-              onPress={toggleMicrophone}
-              disabled={!isInitialized}
-            >
-              <Feather
-                name={isMicEnabled ? "mic" : "mic-off"}
-                size={22}
-                color="#fff"
-              />
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.controlButton,
+              !isChatVisible && styles.controlButtonActive,
+            ]}
+            onPressIn={onChatButtonPressIn}
+            onPressOut={onChatButtonPressOut}
+            onPress={toggleChat}
+          >
+            <Feather name="message-circle" size={22} color="#fff" />
+            <Text style={styles.controlButtonText}>Chat</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.controlButton,
-                !isCameraEnabled && styles.controlButtonActive,
-              ]}
-              onPress={toggleCamera}
-              disabled={!isInitialized}
-            >
-              <Feather
-                name={isCameraEnabled ? "video" : "video-off"}
-                size={22}
-                color="#fff"
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.controlButton}
-              onPress={switchCamera}
-              disabled={!isInitialized || !isCameraEnabled}
-            >
-              <Feather name="refresh-cw" size={22} color="#fff" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.controlButton,
-                !isChatVisible && styles.controlButtonActive,
-              ]}
-              onPress={toggleChat}
-            >
-              <Feather name="message-circle" size={22} color="#fff" />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.controlButton}
+            onPress={handleCartButtonPress}
+          >
+            <Feather name="shopping-cart" size={22} color="#fff" />
+            <Text style={styles.controlButtonText}>Shop</Text>
+          </TouchableOpacity>
         </View>
       </Animated.View>
 
@@ -874,7 +828,6 @@ export default function LiveStreamingScreen() {
         </Animated.View>
       )}
 
-      {/* Products Modal */}
       <ProductsBottomSheet
         visible={isProductsModalVisible}
         onClose={closeProductsModal}
@@ -898,13 +851,13 @@ const styles = StyleSheet.create({
   videoView: {
     flex: 1,
   },
-  cameraOffContainer: {
+  hostOfflineContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#1e293b",
   },
-  cameraOffText: {
+  hostOfflineText: {
     color: "#94a3b8",
     marginTop: 12,
     fontSize: 16,
@@ -918,6 +871,7 @@ const styles = StyleSheet.create({
   loadingText: {
     color: "#94a3b8",
     fontSize: 16,
+    marginTop: 16,
     marginBottom: 16,
   },
   refreshButton: {
@@ -944,7 +898,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
-  headerLeft: {
+  backButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  headerInfo: {
     flexDirection: "row",
     alignItems: "center",
   },
@@ -964,18 +923,6 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 14,
   },
-  titleText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
-    flex: 1,
-    textAlign: "center",
-    marginHorizontal: 8,
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
   viewerContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -983,48 +930,73 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 16,
-    marginRight: 8,
   },
   viewerCount: {
     color: "#ffffff",
     fontSize: 12,
     marginLeft: 4,
   },
-  endButton: {
-    backgroundColor: "#ef4444",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
+  hostInfoContainer: {
+    position: "absolute",
+    top: 70,
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    borderRadius: 24,
+    padding: 8,
+    maxWidth: "80%",
   },
-  endButtonText: {
+  hostAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: myTheme.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  hostAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  hostAvatarText: {
     color: "#ffffff",
+    fontSize: 18,
     fontWeight: "600",
+  },
+  hostTextContainer: {
+    flex: 1,
+  },
+  hostName: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  streamTitle: {
+    color: "#e2e8f0",
     fontSize: 12,
   },
   bottomControls: {
-    padding: 16,
-    alignItems: "center",
-  },
-  controlsRow: {
     flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: "space-around",
+    padding: 16,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
-    borderRadius: 30,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
   },
   controlButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
     alignItems: "center",
-    marginHorizontal: 8,
+    justifyContent: "center",
+    padding: 8,
   },
   controlButtonActive: {
-    backgroundColor: myTheme.primary,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 8,
+  },
+  controlButtonText: {
+    color: "#ffffff",
+    fontSize: 12,
+    marginTop: 4,
   },
   chatButton: {
     position: "absolute",
@@ -1073,11 +1045,11 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     bottom: 0,
-    left: 0,
-    width: "100%",
     backgroundColor: "rgba(15, 23, 42, 0.95)",
     display: "flex",
     flexDirection: "column",
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
   },
   chatHeader: {
     flexDirection: "row",
@@ -1086,7 +1058,18 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255, 255, 255, 0.1)",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  chatStatusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  chatStatusText: {
+    color: "#4ade80",
+    fontSize: 12,
+  },
+  chatStatusError: {
+    color: "#ef4444",
   },
   chatList: {
     flex: 1,
@@ -1095,7 +1078,7 @@ const styles = StyleSheet.create({
   chatMessage: {
     flexDirection: "row",
     marginBottom: 16,
-    maxWidth: "85%",
+    maxWidth: "100%",
   },
   avatarContainer: {
     width: 32,
@@ -1139,11 +1122,9 @@ const styles = StyleSheet.create({
   },
   chatInputContainer: {
     flexDirection: "row",
-    padding: 14,
-    marginBottom: 16,
+    padding: 12,
     borderTopWidth: 1,
     borderTopColor: "rgba(255, 255, 255, 0.1)",
-    backgroundColor: "rgba(15, 23, 42, 0.95)",
   },
   chatInput: {
     flex: 1,
@@ -1166,11 +1147,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.2)",
   },
   chatCloseButton: {
-    padding: 10,
+    padding: 8,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     borderRadius: 20,
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1178,18 +1159,6 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 18,
     fontWeight: "600",
-  },
-  chatStatusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginLeft: 8,
-  },
-  chatStatusText: {
-    color: "#4ade80",
-    fontSize: 12,
-  },
-  chatStatusError: {
-    color: "#ef4444",
   },
   errorContainer: {
     backgroundColor: "rgba(239, 68, 68, 0.2)",

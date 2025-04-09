@@ -132,6 +132,12 @@ function AppLayout() {
           }}
         />
         <Stack.Screen
+          name="(livestream)/livestream-viewer-screen"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
           name="(profile)/contact"
           options={{
             header: () => (

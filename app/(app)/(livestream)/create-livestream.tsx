@@ -24,8 +24,9 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { myTheme } from "@/constants/index";
 import ProductSelectionModal from "@/components/modals/product-selection-modal";
-import { IResponseProduct } from "@/types/product";
+import type { IResponseProduct } from "@/types/product";
 import useLivestreams from "@/hooks/api/useLivestreams";
+import useUser from "@/hooks/api/useUser";
 
 const uploadFile = async (fileUri: string): Promise<string | null> => {
   try {
@@ -84,22 +85,18 @@ const RequiredLabel = ({ children }: { children: React.ReactNode }) => (
   </Text>
 );
 
-const MOCK_ACCOUNT = {
-  id: "8e0d14c6-e5c6-42fa-9d0f-9ad59eef1935",
-  name: "KOL Account",
-};
-
 type FormData = {
   title: string;
   startTime: Date;
   endTime?: Date;
   account: string;
   thumbnail?: string;
-  products: string[];
+  products: any[]; // Changed to any[] to accommodate the new structure
 };
 
 export default function CreateLivestreamScreen() {
   const router = useRouter();
+  const { getProfile } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
@@ -111,6 +108,12 @@ export default function CreateLivestreamScreen() {
   >([]);
   const [thumbnailImage, setThumbnailImage] = useState<string | null>(null);
   const [thumbnailError, setThumbnailError] = useState<string | null>(null);
+  const [account, setAccount] = useState<{ id: string; name: string } | null>(
+    null
+  );
+  const [productDiscounts, setProductDiscounts] = useState<{
+    [key: string]: number;
+  }>({});
 
   // Product selection modal state
   const [productModalVisible, setProductModalVisible] = useState(false);
@@ -118,6 +121,27 @@ export default function CreateLivestreamScreen() {
   // Calculate minimum allowed start time (4 hours from now)
   const minStartTime = new Date();
   minStartTime.setHours(minStartTime.getHours() + 4);
+
+  // Fetch user profile data when component mounts
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const data = await getProfile();
+        if (data && data.id) {
+          setAccount({
+            id: data.id,
+            name: data.email || "Tài khoản của tôi",
+          });
+          setValue("account", data.id);
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        Alert.alert("Lỗi", "Không thể tải thông tin tài khoản");
+      }
+    }
+
+    fetchProfile();
+  }, [getProfile]);
 
   const {
     control,
@@ -132,7 +156,7 @@ export default function CreateLivestreamScreen() {
       startTime: new Date(
         Math.max(new Date().getTime(), minStartTime.getTime())
       ),
-      account: MOCK_ACCOUNT.id,
+      account: "",
       products: [],
     },
   });
@@ -140,23 +164,23 @@ export default function CreateLivestreamScreen() {
   const startTime = watch("startTime");
   const endTime = watch("endTime");
 
-  // Format date for display
+  // Format date for display in Vietnamese
   const formatDate = (date?: Date) => {
     if (!date) return "";
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString("vi-VN", {
       year: "numeric",
-      month: "short",
-      day: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     });
   };
 
-  // Format time for display
+  // Format time for display in Vietnamese
   const formatTime = (date?: Date) => {
     if (!date) return "";
-    return date.toLocaleTimeString("en-US", {
+    return date.toLocaleTimeString("vi-VN", {
       hour: "2-digit",
       minute: "2-digit",
-      hour12: true,
+      hour12: false,
     });
   };
 
@@ -169,9 +193,10 @@ export default function CreateLivestreamScreen() {
   // Updated to receive both IDs and full product objects
   const handleProductSelectionConfirm = (
     selectedIds: string[],
-    productObjects: IResponseProduct[]
+    productObjects: IResponseProduct[],
+    productDiscounts: { [key: string]: number }
   ) => {
-    console.log(`Selection confirmed: ${selectedIds.length} products selected`);
+    console.log(`Đã chọn: ${selectedIds.length} sản phẩm với giảm giá`);
 
     // First update the product details to ensure the UI can render them
     setSelectedProductDetails(productObjects);
@@ -179,10 +204,19 @@ export default function CreateLivestreamScreen() {
     // Then update the IDs
     setSelectedProducts(selectedIds);
 
+    // Store the discounts for later use
+    setProductDiscounts(productDiscounts);
+
     // Force a re-render by using a small timeout
     setTimeout(() => {
       // This will trigger the useEffect that updates the form value
-      setValue("products", selectedIds);
+      setValue(
+        "products",
+        selectedIds.map((id) => ({
+          id,
+          discount: productDiscounts[id] || 0,
+        }))
+      );
       trigger("products");
     }, 50);
   };
@@ -191,12 +225,18 @@ export default function CreateLivestreamScreen() {
   useEffect(() => {
     if (selectedProducts.length > 0) {
       console.log(
-        `useEffect triggered: ${selectedProducts.length} products in state`
+        `useEffect triggered: ${selectedProducts.length} sản phẩm trong state`
       );
-      setValue("products", selectedProducts);
+      setValue(
+        "products",
+        selectedProducts.map((id) => ({
+          id,
+          discount: productDiscounts[id] || 0,
+        }))
+      );
       trigger("products");
     }
-  }, [selectedProducts, setValue, trigger]);
+  }, [selectedProducts, setValue, trigger, productDiscounts]);
 
   // Update the pickThumbnail function
   const pickThumbnail = async () => {
@@ -214,7 +254,7 @@ export default function CreateLivestreamScreen() {
         const fileSize = asset.fileSize || 0;
 
         if (fileSize > 5 * 1024 * 1024) {
-          setThumbnailError("Image size must be less than 5MB");
+          setThumbnailError("Kích thước ảnh phải nhỏ hơn 5MB");
           return;
         }
 
@@ -223,31 +263,32 @@ export default function CreateLivestreamScreen() {
         // We don't set the form value here anymore, as we'll use the uploaded URL later
         setThumbnailError(null);
 
-        console.log("Thumbnail selected:", asset.uri);
+        console.log("Đã chọn ảnh thumbnail:", asset.uri);
       }
     } catch (error) {
-      console.error("Error picking image:", error);
-      setThumbnailError("Failed to select image");
+      console.error("Lỗi khi chọn ảnh:", error);
+      setThumbnailError("Không thể chọn ảnh");
     }
   };
 
   // Add this near the top of the component with other state variables
-  const {
-    createLivestream,
-    isLoading: isApiLoading,
-    error: apiError,
-  } = useLivestreams();
+  const { createLivestream } = useLivestreams();
 
-  // Replace the onSubmit function with this implementation
+  // Replace the onSubmit function with this updated implementation
+  // that doesn't show a separate alert for image uploading
+
   const onSubmit = async (data: FormData) => {
     // Final validation checks
     if (!data.endTime) {
-      Alert.alert("Error", "Please select an end time for your livestream");
+      Alert.alert(
+        "Lỗi",
+        "Vui lòng chọn thời gian kết thúc cho buổi livestream"
+      );
       return;
     }
 
     if (selectedProducts.length === 0) {
-      Alert.alert("Error", "Please select at least one product");
+      Alert.alert("Lỗi", "Vui lòng chọn ít nhất một sản phẩm");
       return;
     }
 
@@ -259,23 +300,15 @@ export default function CreateLivestreamScreen() {
       if (thumbnailImage) {
         setThumbnailError(null);
 
-        // Show uploading status
-        Alert.alert(
-          "Uploading",
-          "Uploading thumbnail image...",
-          [{ text: "OK" }],
-          { cancelable: false }
-        );
-
-        // Upload the thumbnail
+        // Upload the thumbnail without showing a separate alert
         const uploadedFileUrl = await uploadFile(thumbnailImage);
 
         if (!uploadedFileUrl) {
-          throw new Error("Failed to upload thumbnail image");
+          throw new Error("Không thể tải lên ảnh thumbnail");
         }
 
         thumbnailUrl = uploadedFileUrl;
-        console.log("Thumbnail uploaded successfully:", thumbnailUrl);
+        console.log("Tải lên ảnh thumbnail thành công:", thumbnailUrl);
       }
 
       // Format the data for API submission
@@ -288,15 +321,15 @@ export default function CreateLivestreamScreen() {
         products: data.products,
       };
 
-      console.log("Submitting data:", formattedData);
+      console.log("Đang gửi dữ liệu:", formattedData);
 
       // Use the createLivestream function from our hook
       const result = await createLivestream(formattedData);
 
       if (result) {
         Alert.alert(
-          "Success",
-          "Your livestream has been scheduled successfully!",
+          "Thành công",
+          "Buổi livestream của bạn đã được lên lịch thành công!",
           [
             {
               text: "OK",
@@ -306,15 +339,15 @@ export default function CreateLivestreamScreen() {
         );
       } else {
         // The error will be handled by the hook and stored in apiError
-        throw new Error(apiError || "Failed to create livestream");
+        throw new Error("Không thể tạo buổi livestream");
       }
     } catch (error) {
-      console.error("Error creating livestream:", error);
+      console.error("Lỗi khi tạo livestream:", error);
       Alert.alert(
-        "Error",
+        "Lỗi",
         error instanceof Error
           ? error.message
-          : "Failed to schedule your livestream. Please try again."
+          : "Không thể lên lịch buổi livestream. Vui lòng thử lại."
       );
     } finally {
       setIsSubmitting(false);
@@ -327,7 +360,7 @@ export default function CreateLivestreamScreen() {
     const minAllowedTime = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
 
     if (selectedDateTime < minAllowedTime) {
-      return "Start time must be at least 4 hours from now";
+      return "Thời gian bắt đầu phải cách hiện tại ít nhất 4 giờ";
     }
 
     return true;
@@ -335,11 +368,11 @@ export default function CreateLivestreamScreen() {
 
   const validateEndTime = (selectedDateTime: Date): true | string => {
     if (!startTime) {
-      return "Start time must be selected first";
+      return "Phải chọn thời gian bắt đầu trước";
     }
 
     if (selectedDateTime <= startTime) {
-      return "End time must be after start time";
+      return "Thời gian kết thúc phải sau thời gian bắt đầu";
     }
 
     return true;
@@ -354,32 +387,28 @@ export default function CreateLivestreamScreen() {
         >
           <Feather name="arrow-left" size={24} color="#0f172a" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Livestream</Text>
+        <Text style={styles.headerTitle}>Tạo Livestream</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Livestream Details</Text>
+          <Text style={styles.sectionTitle}>Thông tin Livestream</Text>
 
           {/* Title Input */}
           <View style={styles.formGroup}>
-            <RequiredLabel>Title</RequiredLabel>
+            <RequiredLabel>Tiêu đề</RequiredLabel>
             <Controller
               control={control}
               rules={{
-                required: "Title is required",
+                required: "Tiêu đề là bắt buộc",
                 minLength: {
                   value: 5,
-                  message: "Title must be at least 5 characters",
+                  message: "Tiêu đề phải có ít nhất 5 ký tự",
                 },
                 maxLength: {
                   value: 100,
-                  message: "Title must be less than 100 characters",
-                },
-                pattern: {
-                  value: /^[a-zA-Z0-9\s.,!?-]+$/,
-                  message: "Title contains invalid characters",
+                  message: "Tiêu đề phải ít hơn 100 ký tự",
                 },
               }}
               render={({ field: { onChange, onBlur, value } }) => (
@@ -388,7 +417,7 @@ export default function CreateLivestreamScreen() {
                   onBlur={onBlur}
                   onChangeText={onChange}
                   value={value}
-                  placeholder="Enter livestream title"
+                  placeholder="Nhập tiêu đề livestream"
                   placeholderTextColor="#94a3b8"
                   maxLength={100}
                 />
@@ -402,7 +431,7 @@ export default function CreateLivestreamScreen() {
 
           {/* Start Date & Time */}
           <View style={styles.formGroup}>
-            <RequiredLabel>Start Date & Time</RequiredLabel>
+            <RequiredLabel>Ngày & Giờ bắt đầu</RequiredLabel>
             <View style={styles.dateTimeContainer}>
               <TouchableOpacity
                 style={[
@@ -440,7 +469,7 @@ export default function CreateLivestreamScreen() {
               <Text style={styles.errorText}>{errors.startTime.message}</Text>
             )}
             <Text style={styles.helperText}>
-              Start time must be at least 4 hours from now
+              Thời gian bắt đầu phải cách hiện tại ít nhất 4 giờ
             </Text>
 
             {showStartDatePicker && (
@@ -464,7 +493,7 @@ export default function CreateLivestreamScreen() {
                         shouldValidate: true,
                       });
                     } else {
-                      Alert.alert("Invalid Date", isValid);
+                      Alert.alert("Ngày không hợp lệ", isValid);
                     }
                   }
                 }}
@@ -491,7 +520,7 @@ export default function CreateLivestreamScreen() {
                         shouldValidate: true,
                       });
                     } else {
-                      Alert.alert("Invalid Time", isValid);
+                      Alert.alert("Giờ không hợp lệ", isValid);
                     }
                   }
                 }}
@@ -502,7 +531,7 @@ export default function CreateLivestreamScreen() {
           {/* End Date & Time */}
           <View style={styles.formGroup}>
             <View style={styles.labelRow}>
-              <RequiredLabel>End Date & Time</RequiredLabel>
+              <RequiredLabel>Ngày & Giờ kết thúc</RequiredLabel>
             </View>
             <View style={styles.dateTimeContainer}>
               <TouchableOpacity
@@ -519,7 +548,7 @@ export default function CreateLivestreamScreen() {
                   style={styles.dateTimeIcon}
                 />
                 <Text style={styles.dateTimeText}>
-                  {endTime ? formatDate(endTime) : "Select date "}
+                  {endTime ? formatDate(endTime) : "Chọn ngày"}
                 </Text>
               </TouchableOpacity>
 
@@ -537,7 +566,7 @@ export default function CreateLivestreamScreen() {
                   style={styles.dateTimeIcon}
                 />
                 <Text style={styles.dateTimeText}>
-                  {endTime ? formatTime(endTime) : "Select time"}
+                  {endTime ? formatTime(endTime) : "Chọn giờ"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -545,7 +574,7 @@ export default function CreateLivestreamScreen() {
               <Text style={styles.errorText}>{errors.endTime.message}</Text>
             )}
             <Text style={styles.helperText}>
-              End time is required and must be after start time
+              Thời gian kết thúc là bắt buộc và phải sau thời gian bắt đầu
             </Text>
 
             {showEndDatePicker && (
@@ -571,7 +600,7 @@ export default function CreateLivestreamScreen() {
                         shouldValidate: true,
                       });
                     } else {
-                      Alert.alert("Invalid Date", isValid);
+                      Alert.alert("Ngày không hợp lệ", isValid);
                     }
                   }
                 }}
@@ -599,7 +628,7 @@ export default function CreateLivestreamScreen() {
                         shouldValidate: true,
                       });
                     } else {
-                      Alert.alert("Invalid Time", isValid);
+                      Alert.alert("Giờ không hợp lệ", isValid);
                     }
                   }
                 }}
@@ -610,8 +639,8 @@ export default function CreateLivestreamScreen() {
           {/* Thumbnail */}
           <View style={styles.formGroup}>
             <View style={styles.labelRow}>
-              <Text style={styles.label}>Thumbnail</Text>
-              <Text style={styles.optionalText}>(Optional)</Text>
+              <Text style={styles.label}>Ảnh thumbnail</Text>
+              <Text style={styles.optionalText}>(Tùy chọn)</Text>
             </View>
             <TouchableOpacity
               style={[
@@ -629,7 +658,7 @@ export default function CreateLivestreamScreen() {
                 <View style={styles.thumbnailPlaceholder}>
                   <Feather name="image" size={24} color="#94a3b8" />
                   <Text style={styles.thumbnailText}>
-                    Upload thumbnail image
+                    Tải lên ảnh thumbnail
                   </Text>
                 </View>
               )}
@@ -638,7 +667,7 @@ export default function CreateLivestreamScreen() {
               <Text style={styles.errorText}>{thumbnailError}</Text>
             )}
             <Text style={styles.helperText}>
-              Recommended: 16:9 ratio, max 5MB
+              Khuyến nghị: tỷ lệ 16:9, tối đa 5MB
             </Text>
           </View>
         </Card>
@@ -646,10 +675,10 @@ export default function CreateLivestreamScreen() {
         {/* Products Selection */}
         <Card style={styles.formCard}>
           <Text style={styles.sectionTitle}>
-            Select Products <Text style={styles.requiredAsterisk}>*</Text>
+            Chọn sản phẩm <Text style={styles.requiredAsterisk}>*</Text>
           </Text>
           <Text style={styles.sectionDescription}>
-            Choose products to feature in your livestream
+            Chọn sản phẩm để hiển thị trong buổi livestream của bạn
           </Text>
 
           <TouchableOpacity
@@ -664,8 +693,8 @@ export default function CreateLivestreamScreen() {
             />
             <Text style={styles.selectProductsText}>
               {selectedProducts.length > 0
-                ? `Manage Products (${selectedProducts.length})`
-                : "Select Products"}
+                ? `Quản lý sản phẩm (${selectedProducts.length})`
+                : "Chọn sản phẩm"}
             </Text>
           </TouchableOpacity>
 
@@ -673,14 +702,14 @@ export default function CreateLivestreamScreen() {
             <View style={styles.selectedProductsContainer}>
               <View style={styles.selectedProductsHeader}>
                 <Text style={styles.selectedProductsTitle}>
-                  Selected Products ({selectedProductDetails.length})
+                  Sản phẩm đã chọn ({selectedProductDetails.length})
                 </Text>
                 {selectedProductDetails.length > 0 && (
                   <TouchableOpacity
                     style={styles.viewAllButton}
                     onPress={openProductModal}
                   >
-                    <Text style={styles.viewAllText}>Manage</Text>
+                    <Text style={styles.viewAllText}>Quản lý</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -693,6 +722,7 @@ export default function CreateLivestreamScreen() {
                 keyExtractor={(item) => item.id || Math.random().toString()}
                 renderItem={({ item }) => {
                   // Get the main image URL or a placeholder
+
                   const imageUrl =
                     item.images &&
                     item.images.length > 0 &&
@@ -702,8 +732,20 @@ export default function CreateLivestreamScreen() {
 
                   // Format price with currency
                   const formattedPrice = item.price
-                    ? `$${item.price.toFixed(2)}`
-                    : "Price unavailable";
+                    ? `${item.price.toLocaleString("vi-VN")}đ`
+                    : "Chưa có giá";
+
+                  // Get discount percentage for display (0-100%)
+                  const discount = productDiscounts[item.id || ""] || 0;
+                  const discountPercentage = Math.round(discount * 100);
+
+                  // Calculate discounted price
+                  const discountedPrice = item.price
+                    ? item.price * (1 - discount)
+                    : 0;
+                  const formattedDiscountedPrice = `${discountedPrice.toLocaleString(
+                    "vi-VN"
+                  )}đ`;
 
                   return (
                     <View key={item.id} style={styles.selectedProductItem}>
@@ -721,13 +763,25 @@ export default function CreateLivestreamScreen() {
                         >
                           {item.name}
                         </Text>
-                        <Text style={styles.selectedProductPrice}>
-                          {formattedPrice}
-                        </Text>
+                        {discount > 0 ? (
+                          <View>
+                            <Text style={styles.selectedProductPrice}>
+                              {formattedDiscountedPrice}
+                            </Text>
+                            <Text style={styles.selectedProductOriginalPrice}>
+                              Giá gốc {formattedPrice} ({discountPercentage}%
+                              giảm)
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.selectedProductPrice}>
+                            {formattedPrice}
+                          </Text>
+                        )}
                         <View style={styles.selectedProductMeta}>
                           <Text style={styles.selectedProductStock}>
                             {item.quantity !== undefined
-                              ? `${item.quantity} in stock`
+                              ? `Còn ${item.quantity} sản phẩm`
                               : ""}
                           </Text>
                         </View>
@@ -739,7 +793,7 @@ export default function CreateLivestreamScreen() {
                   <View style={styles.emptyProductsContainer}>
                     <Feather name="shopping-bag" size={24} color="#94a3b8" />
                     <Text style={styles.emptyProductsText}>
-                      No products selected
+                      Chưa chọn sản phẩm nào
                     </Text>
                   </View>
                 }
@@ -748,9 +802,11 @@ export default function CreateLivestreamScreen() {
           ) : (
             <View style={styles.emptyProductsContainer}>
               <Feather name="shopping-bag" size={24} color="#94a3b8" />
-              <Text style={styles.emptyProductsText}>No products selected</Text>
+              <Text style={styles.emptyProductsText}>
+                Chưa chọn sản phẩm nào
+              </Text>
               <Text style={styles.emptyProductsSubtext}>
-                Please select at least one product
+                Vui lòng chọn ít nhất một sản phẩm
               </Text>
             </View>
           )}
@@ -760,15 +816,13 @@ export default function CreateLivestreamScreen() {
         <TouchableOpacity
           style={[
             styles.submitButton,
-            (isSubmitting || isApiLoading || selectedProducts.length === 0) &&
+            (isSubmitting || selectedProducts.length === 0) &&
               styles.submitButtonDisabled,
           ]}
           onPress={handleSubmit(onSubmit)}
-          disabled={
-            isSubmitting || isApiLoading || selectedProducts.length === 0
-          }
+          disabled={isSubmitting || selectedProducts.length === 0}
         >
-          {isSubmitting || isApiLoading ? (
+          {isSubmitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <>
@@ -778,7 +832,7 @@ export default function CreateLivestreamScreen() {
                 color="#fff"
                 style={styles.submitButtonIcon}
               />
-              <Text style={styles.submitButtonText}>Schedule Livestream</Text>
+              <Text style={styles.submitButtonText}>Lên lịch Livestream</Text>
             </>
           )}
         </TouchableOpacity>
@@ -790,6 +844,7 @@ export default function CreateLivestreamScreen() {
         onClose={() => setProductModalVisible(false)}
         onConfirm={handleProductSelectionConfirm}
         initialSelectedIds={selectedProducts}
+        initialDiscounts={productDiscounts}
       />
     </View>
   );
@@ -1047,6 +1102,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: myTheme.primary,
+  },
+  selectedProductOriginalPrice: {
+    fontSize: 12,
+    color: "#64748b",
+    textDecorationLine: "line-through",
   },
   submitButton: {
     flexDirection: "row",

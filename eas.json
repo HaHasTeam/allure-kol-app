@@ -1,0 +1,39 @@
+{
+  "cli": {
+    "version": ">= 15.0.15",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://allure-api.kelvinpham.online/allure",
+        "EXPO_PUBLIC_FIREBASE_VAPID_KEY": "BGBB6QUpBsaiSnu4s_sOTYx25D5V4QqtDUB13RwdFl0axib2Q1JRQyg1HD93QbVZgo4tLDHD62usgmQT-lWLWDA"
+      }
+    },
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://allure-api.kelvinpham.online/allure",
+        "EXPO_PUBLIC_FIREBASE_VAPID_KEY": "BGBB6QUpBsaiSnu4s_sOTYx25D5V4QqtDUB13RwdFl0axib2Q1JRQyg1HD93QbVZgo4tLDHD62usgmQT-lWLWDA"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://allure-api.kelvinpham.online/allure",
+        "EXPO_PUBLIC_FIREBASE_VAPID_KEY": "BGBB6QUpBsaiSnu4s_sOTYx25D5V4QqtDUB13RwdFl0axib2Q1JRQyg1HD93QbVZgo4tLDHD62usgmQT-lWLWDA"
+      },
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

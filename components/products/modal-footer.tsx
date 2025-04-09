@@ -47,6 +47,8 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
+    backgroundColor: "#fff", // Add background color to ensure visibility
+    zIndex: 1, // Ensure the footer stays on top
   },
   cancelButton: {
     paddingVertical: 10,
