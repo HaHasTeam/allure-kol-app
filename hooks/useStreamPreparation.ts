@@ -159,47 +159,6 @@ export const useStreamPreparation = ({
   }, [isInitialized, channel, token, userId]);
 
   /**
-   * Join the channel as audience (view only)
-   */
-  const joinChannelAsAudience = useCallback(() => {
-    if (!isInitialized) {
-      log.error("Engine not initialized");
-      return;
-    }
-
-    if (!channel) {
-      log.error("channelId is invalid");
-      return;
-    }
-
-    if (!token) {
-      log.error("token is invalid");
-      setTokenError(true);
-      return;
-    }
-
-    if (!userId) {
-      log.error("userId is invalid");
-      return;
-    }
-
-    try {
-      log.info(
-        `Joining channel '${channel}' as audience with userID ${userId}`
-      );
-      setTokenError(false);
-
-      // Join the channel with user account as audience
-      engine.current.joinChannelWithUserAccount(token, channel, userId, {
-        // Set as audience for view-only
-        clientRoleType: ClientRoleType.ClientRoleAudience,
-      });
-    } catch (error) {
-      log.error("Failed to join channel as audience:", error);
-    }
-  }, [isInitialized, channel, token, userId]);
-
-  /**
    * Renew the token when it's about to expire
    */
   const renewToken = useCallback(
@@ -298,7 +257,8 @@ export const useStreamPreparation = ({
         "Successfully joined channel:",
         connection.channelId,
         "with local UID:",
-        connection.localUid
+        connection.localUid,
+        channel
       );
 
       // Don't check the UID, just check the channel ID
@@ -427,24 +387,6 @@ export const useStreamPreparation = ({
     autoJoin,
   ]);
 
-  // // Effect to handle token changes
-  // useEffect(() => {
-  //   if (isInitialized && token && joinChannelSuccess) {
-  //     // If we're already connected and get a new token, renew it
-  //     renewToken(token);
-  //   } else if (isInitialized && token && !joinChannelSuccess && autoJoin) {
-  //     // If we're not connected but have a new token, try to join
-  //     joinChannel();
-  //   }
-  // }, [
-  //   isInitialized,
-  //   token,
-  //   joinChannelSuccess,
-  //   autoJoin,
-  //   renewToken,
-  //   joinChannel,
-  // ]);
-
   return {
     engine: engine.current,
     isInitialized,
@@ -458,7 +400,6 @@ export const useStreamPreparation = ({
     toggleCamera,
     switchCamera,
     joinChannel,
-    joinChannelAsAudience,
     renewToken,
     leaveChannel,
   };
