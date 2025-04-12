@@ -125,7 +125,11 @@ export const useViewerStream = ({
 
   const onJoinChannelSuccess = useCallback(
     (connection: RtcConnection, elapsed: number) => {
-      log.info("Successfully joined channel as viewer:", connection.channelId);
+      log.info(
+        "Successfully joined channel as viewer:",
+        connection.channelId,
+        channel
+      );
       if (connection.channelId === channel) {
         setJoinChannelSuccess(true);
       }
