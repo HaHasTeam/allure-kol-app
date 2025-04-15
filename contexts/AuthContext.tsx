@@ -21,6 +21,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import useRole from "@/hooks/api/useRole";
 import { Alert } from "react-native";
 import { AxiosError } from "axios";
+import { firebaseAuth } from "@/utils/firebase";
+import { FirebaseAuthTypes } from "@react-native-firebase/auth";
+import useFirebase from "@/hooks/api/useFirebase";
 
 export { useSession } from "../hooks/useSession";
 
@@ -29,7 +32,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [refreshToken, setRefreshToken] = useState<string | undefined>();
   const [firebaseToken, setFirebaseToken] = useState<string | undefined>();
 
+  const [firebaseUser, setFirebaseUser] =
+    useState<FirebaseAuthTypes.UserCredential | null>(null);
   const navigation = useNavigation();
+  const { createCustomToken } = useFirebase();
   // Use the useRole hook instead of managing role state directly
   const {
     fetchRoles,
@@ -40,6 +46,18 @@ export function SessionProvider({ children }: PropsWithChildren) {
     mappedRoles,
     isLoading: isLoadingRoles,
   } = useRole();
+
+  const handleFirebaseAuth = async (token: string) => {
+    try {
+      const userCredential = await firebaseAuth.signInWithCustomToken(token);
+      setFirebaseUser(userCredential);
+      return userCredential.user;
+    } catch (error) {
+      log.error("Firebase auth error:", error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -99,6 +117,27 @@ export function SessionProvider({ children }: PropsWithChildren) {
             setRefreshToken(res.data?.refreshToken);
             await setItem("accessToken", res.data?.accessToken);
             await setItem("refreshToken", res.data?.refreshToken);
+
+            try {
+              // Assuming useFirebase().createCustomToken() is your function to get a Firebase token
+              const firebaseTokenResponse = await createCustomToken();
+
+              if (firebaseTokenResponse) {
+                const fbToken = firebaseTokenResponse.data.token;
+
+                // 4. Save Firebase token
+                await setItem("firebaseToken", fbToken);
+                setFirebaseToken(fbToken);
+
+                // 5. Sign in to Firebase immediately
+                await handleFirebaseAuth(fbToken);
+              }
+            } catch (firebaseError) {
+              log.error("Failed to get or use Firebase token:", firebaseError);
+              // We continue with navigation even if Firebase auth fails
+              // The app can try to recover later
+            }
+
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
@@ -163,6 +202,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         roles,
         mappedRoles,
         isLoadingRoles,
+        firebaseUser,
       }}
     >
       {children}

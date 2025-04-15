@@ -22,12 +22,11 @@ import LoadingIndicator from "@/components/products/loading-indicator";
 import ErrorView from "@/components/products/error-view";
 import ModalFooter from "@/components/products/modal-footer";
 
-// First, import the useProducts hook at the top of the file
+// Import the useProducts hook
 import useProducts from "@/hooks/api/useProducts";
 
 const { width, height } = Dimensions.get("window");
 
-// Update the props interface to include a way to pass back full product objects
 interface ProductSelectionModalProps {
   visible: boolean;
   onClose: () => void;
@@ -38,6 +37,7 @@ interface ProductSelectionModalProps {
   ) => void;
   initialSelectedIds: string[];
   initialDiscounts?: { [key: string]: number };
+  brandId: string;
 }
 
 const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
@@ -46,118 +46,79 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
   onConfirm,
   initialSelectedIds,
   initialDiscounts = {},
+  brandId,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [products, setProducts] = useState<IResponseProduct[]>([]);
+  const [allProducts, setAllProducts] = useState<IResponseProduct[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<IResponseProduct[]>(
+    []
+  );
   const [selectedProductIds, setSelectedProductIds] =
     useState<string[]>(initialSelectedIds);
   const [productDiscounts, setProductDiscounts] = useState<{
     [key: string]: number;
   }>(initialDiscounts);
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  const [totalItems, setTotalItems] = useState(0);
 
-  // Add a ref to track if this is the initial load
-  const isInitialLoadRef = useRef(true);
-  // Add a ref to track previous search query
-  const prevSearchQueryRef = useRef("");
-  // Add a ref to track if modal was previously visible
+  // Track if modal was previously visible
   const wasVisibleRef = useRef(false);
 
-  // Make sure to add getFilteredProducts to the component
-  const { getFilteredProducts } = useProducts();
+  // Import only getProductByBrandId from the hook
+  const { getProductByBrandId } = useProducts();
 
-  // Then, replace the existing fetchProductsData function with this implementation
-  // that uses the useProducts hook
-  const fetchProductsData = useCallback(
-    async (query: string, pageNum: number, append = false) => {
-      try {
-        if (pageNum === 1) {
-          setLoading(true);
-        } else {
-          setLoadingMore(true);
-        }
-        setError(null);
+  // Simplified fetchProductsData function that only uses getProductByBrandId
+  const fetchProductsData = useCallback(async () => {
+    if (!brandId) {
+      setError("Brand ID is required");
+      return;
+    }
 
-        console.log(
-          `Fetching products: query=${query}, page=${pageNum}, append=${append}`
-        );
+    try {
+      setLoading(true);
+      setError(null);
 
-        // Use the getFilteredProducts function from the hook
-        const result = await getFilteredProducts({
-          search: query,
-          page: pageNum,
-          limit: 10, // Increased limit to show more initial data
-          // You can add more filter parameters as needed
-          // sortBy: "createdAt",
-          // order: "DESC",
-          // brandId: selectedBrand,
-          // categoryId: selectedCategory,
-        });
+      console.log(`Fetching products for brand: ${brandId}`);
 
-        if (result) {
-          if (append) {
-            setProducts((prev) => [...prev, ...result.products]);
-          } else {
-            setProducts(result.products);
-          }
-          setHasMore(result.hasMore);
-          setTotalItems(result.total);
+      const result = await getProductByBrandId(brandId);
 
-          // Log pagination info for debugging
-          console.log(
-            `Loaded page ${result.page} of ${result.totalPages}, total: ${result.total} items`
-          );
-        }
-      } catch (err) {
-        console.error("Error fetching products:", err);
-        setError("Failed to load products. Please try again.");
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
+      if (result && result.products) {
+        setAllProducts(result.products);
+        setFilteredProducts(result.products);
+      } else {
+        setAllProducts([]);
+        setFilteredProducts([]);
       }
-    },
-    [getFilteredProducts]
-  );
+    } catch (err) {
+      console.error("Error fetching products:", err);
+      setError("Failed to load products. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [brandId, getProductByBrandId]);
 
-  // Immediate data fetch when modal becomes visible
+  // Filter products when search query changes
   useEffect(() => {
-    if (visible && (!wasVisibleRef.current || products.length === 0)) {
-      // Fetch data immediately when modal opens
-      fetchProductsData("", 1, false);
+    if (searchQuery.trim() === "") {
+      setFilteredProducts(allProducts);
+    } else {
+      const lowercaseQuery = searchQuery.toLowerCase();
+      const filtered = allProducts.filter((product) =>
+        product.name?.toLowerCase().includes(lowercaseQuery)
+      );
+      setFilteredProducts(filtered);
+    }
+  }, [searchQuery, allProducts]);
+
+  // Fetch data when modal becomes visible
+  useEffect(() => {
+    if (visible && (!wasVisibleRef.current || allProducts.length === 0)) {
+      fetchProductsData();
       wasVisibleRef.current = true;
     } else if (!visible) {
       wasVisibleRef.current = false;
     }
-  }, [visible, fetchProductsData]);
-
-  // Combined effect for handling both initial load and search changes
-  useEffect(() => {
-    // Only fetch data if the modal is visible and this is a search query change
-    if (!visible || searchQuery === prevSearchQueryRef.current) {
-      return;
-    }
-
-    // For search query changes, use debounce
-    const delayDebounceFn = setTimeout(() => {
-      setPage(1);
-      fetchProductsData(searchQuery, 1, false);
-      prevSearchQueryRef.current = searchQuery;
-    }, 500);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, visible, fetchProductsData]);
-
-  // Reset the initial load flag when modal closes
-  useEffect(() => {
-    if (!visible) {
-      isInitialLoadRef.current = true;
-    }
-  }, [visible]);
+  }, [visible, fetchProductsData, allProducts.length]);
 
   // Handle product selection
   const toggleProductSelection = (productId: string) => {
@@ -185,30 +146,17 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
     }));
   };
 
-  // Handle load more
-  const handleLoadMore = () => {
-    if (!loadingMore && hasMore) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchProductsData(searchQuery, nextPage, true);
-    }
-  };
-
   // Clear search
   const clearSearch = () => {
     setSearchQuery("");
   };
 
-  // Update the handleConfirm function to ensure it properly passes data back
-  // Look for the handleConfirm function and replace it with this implementation:
-
   const handleConfirm = () => {
     // Get the full product objects for selected IDs
-    const selectedProductObjects = products.filter((product) =>
+    const selectedProductObjects = allProducts.filter((product) =>
       selectedProductIds.includes(product.id || "")
     );
 
-    // Log what we're sending back for debugging
     console.log(
       `Confirming selection of ${selectedProductIds.length} products with discounts`,
       productDiscounts
@@ -221,17 +169,6 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
     onClose();
   };
 
-  // Render footer with loading indicator
-  const renderFooter = () => {
-    if (!loadingMore) return null;
-
-    return (
-      <View style={styles.footerLoader}>
-        <LoadingIndicator size="small" message="Loading more products..." />
-      </View>
-    );
-  };
-
   // Render empty state
   const renderEmpty = () => {
     if (loading) return null;
@@ -239,7 +176,9 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
     return (
       <EmptyState
         message={
-          searchQuery ? "No products found" : "Start typing to search products"
+          searchQuery
+            ? "No products found"
+            : "No products available for this brand"
         }
         icon="search"
       />
@@ -275,24 +214,20 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
 
           {/* Content */}
           <View style={styles.contentWrapper}>
-            {error && (
-              <ErrorView
-                message={error}
-                onRetry={() => fetchProductsData(searchQuery, 1, false)}
-              />
-            )}
+            {error && <ErrorView message={error} onRetry={fetchProductsData} />}
 
             {loading ? (
               <LoadingIndicator message="Loading products..." />
             ) : (
               <>
-                {totalItems > 0 && (
+                {filteredProducts.length > 0 && (
                   <Text style={styles.resultsCount}>
-                    Showing {products.length} of {totalItems} products
+                    Showing {filteredProducts.length} of {allProducts.length}{" "}
+                    products for this brand
                   </Text>
                 )}
                 <FlatList
-                  data={products}
+                  data={filteredProducts}
                   renderItem={({ item }) => {
                     const productId = item.id || "";
                     const isSelected = selectedProductIds.includes(productId);
@@ -312,9 +247,6 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
                   contentContainerStyle={styles.listContent}
                   showsVerticalScrollIndicator={false}
                   ListEmptyComponent={renderEmpty}
-                  ListFooterComponent={renderFooter}
-                  onEndReached={handleLoadMore}
-                  onEndReachedThreshold={0.5}
                   style={styles.flatList}
                 />
               </>

@@ -1,9 +1,10 @@
+"use client";
+
 import { useCallback } from "react";
-import { GET, POST, PUT, DELETE } from "@/utils/api.caller";
+import { GET } from "@/utils/api.caller";
 import { useApi } from "./useApi";
-import { ApiError } from "@/utils/error-handler";
-import { IResponseProduct } from "@/types/product";
-import { log } from "@/utils/logger";
+import type { ApiError } from "@/utils/error-handler";
+import type { IResponseProduct } from "@/types/product";
 
 // Define the filter parameters type
 export interface ProductFilterParams {
@@ -111,7 +112,43 @@ const useProducts = () => {
     },
     []
   );
+  /**
+   * Get filtered products based on provided parameters
+   * @param id Filter parameters
+   * @returns Filtered products or error message
+   */
+  const getProductByBrandId = useCallback(
+    async (brandId: string) => {
+      try {
+        const endpoint = `${rootEndpoint}/get-by-brand/${brandId}`;
 
+        const result = await execute<{
+          data: {
+            data: IResponseProduct[];
+          };
+        }>(() => GET(endpoint), {
+          onError: (error: ApiError) => {
+            console.error(
+              `Failed to fetch products for brand ${brandId}:`,
+              error.message
+            );
+          },
+        });
+
+        if (!result?.data?.data) {
+          return null;
+        }
+
+        return {
+          products: result.data.data,
+        };
+      } catch (error) {
+        console.error("Error in getProductByBrandId:", error);
+        return null;
+      }
+    },
+    [execute]
+  );
   /**
    * Get product details by ID
    * @param id Product ID
@@ -145,6 +182,7 @@ const useProducts = () => {
   return {
     getFilteredProducts,
     getProductById,
+    getProductByBrandId,
   };
 };
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { log } from "@/utils/logger";
-import useUserAuth from "@/hooks/useUserAuth";
 import firestore from "@react-native-firebase/firestore";
+import { useSession } from "@/contexts/AuthContext";
 
 // Message type definition
 export interface ChatMessage {
@@ -33,8 +33,8 @@ export const useFirebaseChat = (
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
 
-  // Get authenticated user from useUserAuth hook
-  const { user, error: authError } = useUserAuth();
+  // Get Firebase user from context
+  const { firebaseUser, accessToken } = useSession();
 
   // Refs for managing state without triggering re-renders
   const lastMessageRef = useRef<any>(null);
@@ -42,14 +42,7 @@ export const useFirebaseChat = (
   const unsubscribeRef = useRef<() => void | null>(() => null);
 
   // Check if user is logged in
-  const isLoggedIn = !!user;
-
-  // Set auth error if any
-  useEffect(() => {
-    if (authError) {
-      setError(authError);
-    }
-  }, [authError]);
+  const isLoggedIn = !!firebaseUser && !!accessToken;
 
   // Initialize chat listener
   useEffect(() => {
@@ -102,6 +95,7 @@ export const useFirebaseChat = (
 
             setMessages(newMessages);
             setIsInitialized(true);
+            setError(null);
           },
           (err) => {
             log.error("Error getting chat messages:", err);
@@ -185,7 +179,10 @@ export const useFirebaseChat = (
   // Send a message with throttling
   const sendMessage = useCallback(
     async (message: string) => {
-      if (!message.trim() || !isLoggedIn || !livestreamId || !user) {
+      if (!message.trim() || !isLoggedIn || !livestreamId || !firebaseUser) {
+        if (!isLoggedIn) {
+          setError("You must be logged in to send messages");
+        }
         return false;
       }
 
@@ -199,9 +196,9 @@ export const useFirebaseChat = (
       setIsSending(true);
 
       try {
-        // Get user info
-        const userName = user.displayName || "Anonymous";
-        const userId = user.uid || "";
+        // Get user info from context
+        const userName = firebaseUser.user.displayName || "Anonymous";
+        const userId = firebaseUser.user.uid || "";
 
         // Create avatar from first letters of the username
         const avatar = userName.substring(0, 2).toUpperCase();
@@ -228,7 +225,7 @@ export const useFirebaseChat = (
         return false;
       }
     },
-    [user, isLoggedIn, livestreamId]
+    [firebaseUser, isLoggedIn, livestreamId]
   );
 
   // Clear error

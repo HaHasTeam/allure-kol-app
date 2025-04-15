@@ -1,5 +1,6 @@
 import { createContext } from "react";
 import type { GetRoleByEnumResponse, TRoleResponse } from "@/types/role";
+import { FirebaseAuthTypes } from "@react-native-firebase/auth";
 
 // Define the context type without any implementation
 const AuthContext = createContext<{
@@ -23,6 +24,7 @@ const AuthContext = createContext<{
   getRoleByEnum?: (roleEnum: string) => TRoleResponse | undefined;
   getRoleNameByEnum?: (roleEnum: string) => string;
   isRolesLoaded?: () => boolean;
+  firebaseUser: FirebaseAuthTypes.UserCredential | null;
 }>({
   login: () => Promise.resolve(false),
   logout: () => Promise.resolve(""),
@@ -36,6 +38,7 @@ const AuthContext = createContext<{
   isLoadingRoles: false,
   roles: [],
   mappedRoles: {},
+  firebaseUser: null,
 });
 
 export default AuthContext;

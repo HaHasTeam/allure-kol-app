@@ -8,13 +8,17 @@ import {
   Text,
   Alert,
   FlatList,
-  TextInput,
   BackHandler,
   Dimensions,
   Platform,
   StatusBar,
   ActivityIndicator,
+  Keyboard,
+  TouchableWithoutFeedback,
+  KeyboardAvoidingView,
+  PanResponder,
 } from "react-native";
+import { TextField } from "react-native-ui-lib"; // Import TextField instead of TextInput
 import type { FlatList as FlatListType } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -23,137 +27,23 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSpring,
 } from "react-native-reanimated";
 
 import { myTheme } from "@/constants/index";
-import { useStreamPreparation } from "@/hooks/useStreamPreparation";
+import { useStreamWithAttachment } from "@/hooks/useStreamWithAttachment";
 import { refreshAgoraToken } from "@/utils/token-refresh";
 import useLivestreams from "@/hooks/api/useLivestreams";
 import { log } from "@/utils/logger";
 import config from "@/constants/agora.config";
 import { useFirebaseChat } from "@/hooks/useFirebaseChat";
-import ProductsBottomSheet from "@/components/product-bottom-sheet";
-import type { IResponseProduct } from "@/types/product";
-import { useStreamAttachment } from "@/hooks/useStreamAttachment";
+import ProductsBottomSheet, {
+  type LiveSteamDetail,
+} from "@/components/product-bottom-sheet";
 
 const { width, height } = Dimensions.get("window");
 
 // Token refresh interval in milliseconds (refresh every 30 minutes)
 const TOKEN_REFRESH_INTERVAL = 30 * 60 * 1000;
-
-// Sample products data
-const SAMPLE_PRODUCTS: IResponseProduct[] = [
-  {
-    id: "1",
-    name: "Mic. Cap sr190",
-    brand: {
-      id: "b1",
-      name: "AudioTech",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      logo: "https://via.placeholder.com/50",
-      description: "AudioTech brand description",
-    },
-    images: [{ fileUrl: "https://via.placeholder.com/50" }],
-    description: "Professional microphone cap",
-    status: "active",
-    detail: "High-quality microphone cap for professional use",
-    productClassifications: [],
-    price: 190,
-    quantity: 100,
-    updatedAt: new Date().toISOString(),
-    salesLast30Days: "25",
-    totalSales: "120",
-    totalRatings: "45",
-    averageRating: "4.5",
-    certificates: [],
-    average_rating: 4.5,
-    total_ratings: 45,
-  },
-  {
-    id: "2",
-    name: "Earphone X123",
-    brand: { id: "b2", name: "SoundWave" },
-    images: [{ fileUrl: "https://via.placeholder.com/50" }],
-    description: "Wireless earphones with noise cancellation",
-    status: "active",
-    detail: "Premium wireless earphones with active noise cancellation",
-    productClassifications: [],
-    price: 40,
-    quantity: 200,
-    updatedAt: new Date().toISOString(),
-    salesLast30Days: "50",
-    totalSales: "300",
-    totalRatings: "120",
-    averageRating: "4.2",
-    certificates: [],
-    average_rating: 4.2,
-    total_ratings: 120,
-  },
-  {
-    id: "3",
-    name: "Mouse AS900",
-    brand: { id: "b3", name: "TechGear" },
-    images: [{ fileUrl: "https://via.placeholder.com/50" }],
-    description: "Gaming mouse with RGB lighting",
-    status: "active",
-    detail: "High-precision gaming mouse with customizable RGB lighting",
-    productClassifications: [],
-    price: 100,
-    quantity: 150,
-    updatedAt: new Date().toISOString(),
-    salesLast30Days: "30",
-    totalSales: "180",
-    totalRatings: "75",
-    averageRating: "4.7",
-    certificates: [],
-    average_rating: 4.7,
-    total_ratings: 75,
-  },
-  {
-    id: "4",
-    name: "Monitor LED100",
-    brand: { id: "b4", name: "VisualPro" },
-    images: [{ fileUrl: "https://via.placeholder.com/50" }],
-    description: "27-inch LED monitor with 4K resolution",
-    status: "active",
-    detail:
-      "Professional 27-inch LED monitor with 4K resolution and HDR support",
-    productClassifications: [],
-    price: 220,
-    quantity: 80,
-    updatedAt: new Date().toISOString(),
-    salesLast30Days: "15",
-    totalSales: "90",
-    totalRatings: "40",
-    averageRating: "4.8",
-    certificates: [],
-    average_rating: 4.8,
-    total_ratings: 40,
-  },
-  {
-    id: "5",
-    name: "Desk Lamp X11",
-    brand: { id: "b5", name: "LightMaster" },
-    images: [{ fileUrl: "https://via.placeholder.com/50" }],
-    description: "Adjustable desk lamp with multiple lighting modes",
-    status: "active",
-    detail:
-      "Modern adjustable desk lamp with touch control and multiple lighting modes",
-    productClassifications: [],
-    price: 75,
-    quantity: 120,
-    updatedAt: new Date().toISOString(),
-    salesLast30Days: "20",
-    totalSales: "110",
-    totalRatings: "35",
-    averageRating: "4.3",
-    certificates: [],
-    average_rating: 4.3,
-    total_ratings: 35,
-  },
-];
 
 export default function LiveStreamingScreen() {
   const router = useRouter();
@@ -162,9 +52,24 @@ export default function LiveStreamingScreen() {
   const streamTitle = params.title as string;
   const channel = params.channel as string;
   const userId = params.userId as string;
-  const [isChatVisible, setIsChatVisible] = useState(false);
   const [newMessage, setNewMessage] = useState("");
-  const [cartItems, setCartItems] = useState<IResponseProduct[]>([]);
+  const [streamInfo, setStreamInfo] = useState({
+    title: streamTitle || "Live Stream",
+    hostName: "Host",
+    hostAvatar: undefined,
+  });
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  // Add these new state variables for gesture scrolling
+  const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
+  const [lastScrollPosition, setLastScrollPosition] = useState(0);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [contentHeight, setContentHeight] = useState(0);
+  const [visibleHeight, setVisibleHeight] = useState(0);
+
+  // Add a ref for the text input
+  const inputRef = useRef<any>(null);
 
   // Products modal visibility state
   const [isProductsModalVisible, setProductsModalVisible] = useState(false);
@@ -191,6 +96,7 @@ export default function LiveStreamingScreen() {
   );
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const [tokenError, setTokenError] = useState(false);
+  const [listProduct, setListProduct] = useState<LiveSteamDetail[]>([]);
 
   const chatListRef = useRef<
     FlatListType<{
@@ -202,19 +108,72 @@ export default function LiveStreamingScreen() {
     }>
   >(null);
 
+  // Set up pan responder for gesture-based scrolling
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to vertical gestures
+        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+      },
+      onPanResponderGrant: () => {
+        setIsScrolling(true);
+        setIsAutoScrollEnabled(false);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (chatListRef.current) {
+          // Calculate new scroll position based on gesture
+          const newPosition = lastScrollPosition - gestureState.dy;
+          chatListRef.current.scrollToOffset({
+            offset: newPosition,
+            animated: false,
+          });
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // Update last scroll position
+        if (chatListRef.current) {
+          setLastScrollPosition(lastScrollPosition - gestureState.dy);
+        }
+
+        // If user flicked quickly, add momentum scrolling
+        if (Math.abs(gestureState.vy) > 0.5) {
+          const distance = gestureState.vy * 300; // Adjust multiplier for momentum
+          if (chatListRef.current) {
+            chatListRef.current.scrollToOffset({
+              offset: lastScrollPosition - gestureState.dy - distance,
+              animated: true,
+            });
+            // Update last position after momentum scroll
+            setLastScrollPosition(
+              lastScrollPosition - gestureState.dy - distance
+            );
+          }
+        }
+
+        setIsScrolling(false);
+
+        // After a short delay, re-enable auto-scroll if at bottom
+        setTimeout(() => {
+          if (chatListRef.current && isNearBottom()) {
+            setIsAutoScrollEnabled(true);
+          }
+        }, 1000);
+      },
+    })
+  ).current;
+
   // Animation values
-  const chatWidth = useSharedValue(width);
-  const chatOpacity = useSharedValue(1);
   const controlsOpacity = useSharedValue(1);
   const fabScale = useSharedValue(1);
 
   // Get params
-  const { getLivestreamToken } = useLivestreams();
+  const { getLivestreamToken, getLivestreamById, updateLivestream } =
+    useLivestreams();
 
   // Token refresh timer
   const tokenRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize Agora engine with our improved hook
   const {
     engine,
     isInitialized,
@@ -226,8 +185,10 @@ export default function LiveStreamingScreen() {
     switchCamera,
     joinChannel,
     leaveChannel,
-  } = useStreamPreparation({
-    appId: config.appId, // Replace with your Agora App ID
+    viewerCount,
+    refreshViewerCount,
+  } = useStreamWithAttachment({
+    appId: config.appId,
     channel: channel,
     token: currentToken,
     userId: userId,
@@ -235,13 +196,52 @@ export default function LiveStreamingScreen() {
     autoJoin: true, // Auto join for the live screen
   });
 
-  // Use the stream attachment hook to track viewer count
-  const { viewerCount, refreshViewerCount } = useStreamAttachment(
-    engine,
-    channel,
-    isInitialized,
-    joinChannelSuccess
-  );
+  // Listen for keyboard events
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      "keyboardDidShow",
+      () => {
+        setIsKeyboardVisible(true);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      "keyboardDidHide",
+      () => {
+        setIsKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidHideListener.remove();
+      keyboardDidShowListener.remove();
+    };
+  }, []);
+
+  // Function to focus the input
+  const focusInput = () => {
+    console.log("Attempting to focus input");
+    if (inputRef.current) {
+      // For TextField, we need to access the inner TextInput
+      if (inputRef.current.focus) {
+        inputRef.current.focus();
+        console.log("Focus called on input ref");
+      } else if (
+        inputRef.current.getTextField &&
+        inputRef.current.getTextField().focus
+      ) {
+        // Some UI lib components have a getTextField method
+        inputRef.current.getTextField().focus();
+        console.log("Focus called on getTextField");
+      } else {
+        console.log(
+          "Input ref exists but no focus method found",
+          inputRef.current
+        );
+      }
+    } else {
+      console.log("Input ref is null");
+    }
+  };
 
   // Function to refresh the token
   const handleTokenRefresh = useCallback(async () => {
@@ -380,6 +380,40 @@ export default function LiveStreamingScreen() {
     }, 5000);
   };
 
+  // Fetch livestream data and calculate duration
+  useEffect(() => {
+    async function fetchLivestreamData() {
+      try {
+        // Fetch livestream details
+        const livestreamData = await getLivestreamById(livestreamId);
+        if (livestreamData && livestreamData.startTime) {
+          // Set stream info
+          setStreamInfo({
+            title: livestreamData.title || "Live Stream",
+            hostName: "Host", // You might want to fetch host info from your API
+            hostAvatar: undefined,
+          });
+          setListProduct(livestreamData.livestreamProducts);
+          // Calculate stream duration based on startTime
+          const startTimeDate = new Date(livestreamData.startTime);
+          const currentTime = new Date();
+          const durationInSeconds = Math.floor(
+            (currentTime.getTime() - startTimeDate.getTime()) / 1000
+          );
+
+          // Only set if it's a positive value
+          if (durationInSeconds > 0) {
+            setStreamDuration(durationInSeconds);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching livestream data:", error);
+      }
+    }
+
+    fetchLivestreamData();
+  }, [livestreamId, getLivestreamById]);
+
   // Update the useEffect that sets up timers to include the token refresh schedule
   useEffect(() => {
     // Start timer for stream duration
@@ -412,19 +446,8 @@ export default function LiveStreamingScreen() {
     };
   }, [setupTokenRefreshSchedule]);
 
-  // Toggle chat visibility
-  const toggleChat = () => {
-    if (isChatVisible) {
-      // Hide chat
-      chatWidth.value = withTiming(0, { duration: 300 });
-      chatOpacity.value = withTiming(0, { duration: 200 });
-      setTimeout(() => setIsChatVisible(false), 300);
-    } else {
-      // Show chat
-      setIsChatVisible(true);
-      chatWidth.value = withTiming(width, { duration: 300 });
-      chatOpacity.value = withTiming(1, { duration: 300 });
-    }
+  const toggleSettings = () => {
+    setIsSettingsVisible(!isSettingsVisible);
     resetControlsTimer();
   };
 
@@ -451,6 +474,22 @@ export default function LiveStreamingScreen() {
     }
   };
 
+  // Check if scroll position is near the bottom
+  const isNearBottom = () => {
+    if (!chatListRef.current || chatMessages.length === 0) return true;
+
+    // If we're within 20 pixels of the bottom, consider it "at bottom"
+    return lastScrollPosition > contentHeight - visibleHeight - 20;
+  };
+
+  // Scroll to bottom of chat
+  const scrollToBottom = () => {
+    if (chatListRef.current && chatMessages.length > 0) {
+      chatListRef.current.scrollToEnd({ animated: true });
+      setIsAutoScrollEnabled(true);
+    }
+  };
+
   // Send message function
   const sendMessage = async () => {
     if (!newMessage.trim() || !isChatLoggedIn) {
@@ -463,6 +502,7 @@ export default function LiveStreamingScreen() {
     try {
       await sendChatMessage(newMessage.trim());
       setNewMessage("");
+      Keyboard.dismiss(); // Dismiss keyboard after sending message
 
       // Scroll to bottom
       if (chatListRef.current) {
@@ -489,12 +529,11 @@ export default function LiveStreamingScreen() {
     setIsEndingStream(true);
 
     try {
-      // In a real app, you would make an API call to update the livestream status
-      // For example:
-      // await updateLivestreamStatus(livestreamId, 'ended')
-
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const currentTime = new Date().toISOString();
+      await updateLivestream(livestreamId, {
+        status: "ENDED", // Update status to ENDED
+        endTime: currentTime, // Set the end time to current time
+      });
 
       // Clean up Agora connection
       if (isInitialized) {
@@ -519,33 +558,11 @@ export default function LiveStreamingScreen() {
   };
 
   // Animated styles
-  const chatContainerStyle = useAnimatedStyle(() => {
-    return {
-      width: chatWidth.value,
-      opacity: chatOpacity.value,
-    };
-  });
-
   const controlsStyle = useAnimatedStyle(() => {
     return {
       opacity: controlsOpacity.value,
     };
   });
-
-  const chatButtonStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: fabScale.value }],
-    };
-  });
-
-  // Handle chat button press animation
-  const onChatButtonPressIn = () => {
-    fabScale.value = withSpring(0.9);
-  };
-
-  const onChatButtonPressOut = () => {
-    fabScale.value = withSpring(1);
-  };
 
   // Manual token refresh button handler
   const onManualTokenRefresh = () => {
@@ -577,211 +594,101 @@ export default function LiveStreamingScreen() {
     openProductsModal();
   };
 
-  // Handle adding product to cart
-  const handleAddToCart = (product: IResponseProduct) => {
-    setCartItems((prev) => [...prev, product]);
-    Alert.alert("Success", `${product.name} added to cart!`);
+  // Handle scroll event to track scroll position
+  const handleScroll = (event: any) => {
+    const scrollY = event.nativeEvent.contentOffset.y;
+    const contentHeight = event.nativeEvent.contentSize.height;
+    const layoutHeight = event.nativeEvent.layoutMeasurement.height;
+
+    setLastScrollPosition(scrollY);
+    setContentHeight(contentHeight);
+    setVisibleHeight(layoutHeight);
+
+    // If user manually scrolled away from bottom, disable auto-scroll
+    if (scrollY < contentHeight - layoutHeight - 20) {
+      setIsAutoScrollEnabled(false);
+    } else {
+      setIsAutoScrollEnabled(true);
+    }
   };
 
-  // Handle buying product now
-  const handleBuyNow = (product: IResponseProduct) => {
-    Alert.alert("Buy Now", `Proceed to checkout for ${product.name}?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Checkout",
-        onPress: () => {
-          Alert.alert("Success", `Order placed for ${product.name}!`);
-        },
-      },
-    ]);
+  // Render a chat message item
+  const renderChatMessage = ({ item, index }: { item: any; index: number }) => (
+    <Animated.View
+      style={[styles.tiktokChatMessage, { opacity: 1 }]}
+      key={item.id}
+    >
+      <View style={styles.tiktokAvatarContainer}>
+        <Text style={styles.tiktokAvatarText}>{item.avatar}</Text>
+      </View>
+      <View style={styles.tiktokMessageContent}>
+        <Text style={styles.tiktokMessageUser}>{item.user}</Text>
+        <Text style={styles.tiktokMessageText}>{item.message}</Text>
+      </View>
+    </Animated.View>
+  );
+
+  // Dismiss keyboard when tapping outside the input
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
   };
 
   return (
-    <View style={styles.container} onTouchStart={resetControlsTimer}>
-      <StatusBar hidden />
+    <TouchableWithoutFeedback onPress={dismissKeyboard}>
+      <View style={styles.container} onTouchStart={resetControlsTimer}>
+        <StatusBar hidden />
 
-      {/* Video Stream */}
-      <View style={styles.videoContainer}>
-        {isInitialized && !tokenError ? (
-          isCameraEnabled ? (
-            <RtcSurfaceView style={styles.videoView} canvas={{ uid: 0 }} />
+        {/* Video Stream */}
+        <View style={styles.videoContainer}>
+          {isInitialized && !tokenError ? (
+            isCameraEnabled ? (
+              <RtcSurfaceView style={styles.videoView} canvas={{ uid: 0 }} />
+            ) : (
+              <View style={styles.cameraOffContainer}>
+                <Feather name="video-off" size={48} color="#94a3b8" />
+                <Text style={styles.cameraOffText}>Camera is turned off</Text>
+              </View>
+            )
           ) : (
-            <View style={styles.cameraOffContainer}>
-              <Feather name="video-off" size={48} color="#94a3b8" />
-              <Text style={styles.cameraOffText}>Camera is turned off</Text>
-            </View>
-          )
-        ) : (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>
-              {tokenError
-                ? "Token error. Tap to refresh."
-                : isRefreshingToken
-                ? "Refreshing token..."
-                : "Connecting to stream..."}
-            </Text>
-            {tokenError && (
-              <TouchableOpacity
-                style={styles.refreshButton}
-                onPress={onManualTokenRefresh}
-                disabled={isRefreshingToken}
-              >
-                <Text style={styles.refreshButtonText}>Refresh Token</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* Cart Button */}
-      <Animated.View style={[styles.chatButton]}>
-        <TouchableOpacity
-          style={styles.chatButtonInner}
-          onPress={handleCartButtonPress}
-        >
-          <Feather name="shopping-cart" size={24} color="#fff" />
-          {cartItems.length > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>
+                {tokenError
+                  ? "Token error. Tap to refresh."
+                  : isRefreshingToken
+                  ? "Refreshing token..."
+                  : "Connecting to stream..."}
+              </Text>
+              {tokenError && (
+                <TouchableOpacity
+                  style={styles.refreshButton}
+                  onPress={onManualTokenRefresh}
+                  disabled={isRefreshingToken}
+                >
+                  <Text style={styles.refreshButtonText}>Refresh Token</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
+        </View>
+
+        {/* Settings button in top right */}
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={toggleSettings}
+        >
+          <View style={styles.actionButtonInner}>
+            <Feather name="settings" size={24} color="#fff" />
+          </View>
         </TouchableOpacity>
-      </Animated.View>
 
-      {/* Floating Chat Button (visible when chat is hidden) */}
-      {/* {!isChatVisible && (
-        <Animated.View style={[styles.chatButton, chatButtonStyle]}>
-          <TouchableOpacity
-            onPressIn={onChatButtonPressIn}
-            onPressOut={onChatButtonPressOut}
-            onPress={toggleChat}
-            style={styles.chatButtonInner}
-          >
-            <Feather name="message-circle" size={24} color="#fff" />
-            <View style={styles.chatBadge}>
-              <Text style={styles.chatBadgeText}>{chatMessages.length}</Text>
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-      )} */}
-
-      {/* Overlay Controls */}
-      <Animated.View style={[styles.overlayControls, controlsStyle]}>
-        {/* Top Row: Header with info */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.liveIndicator}>
-              <Text style={styles.liveText}>LIVE</Text>
-            </View>
-            <Text style={styles.durationText}>
-              {formatDuration(streamDuration)}
-            </Text>
-          </View>
-
-          <Text style={styles.titleText} numberOfLines={1}>
-            {streamTitle}
-          </Text>
-
-          <View style={styles.headerRight}>
-            <View style={styles.viewerContainer}>
-              <Feather name="eye" size={14} color="#fff" />
-              <Text style={styles.viewerCount}>{viewerCount}</Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.endButton}
-              onPress={confirmEndStream}
-              disabled={isEndingStream}
-            >
-              {isEndingStream ? (
-                <Text style={styles.endButtonText}>Ending...</Text>
-              ) : (
-                <Text style={styles.endButtonText}>End</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Bottom Controls */}
-        <View style={styles.bottomControls}>
-          <View style={styles.controlsRow}>
-            <TouchableOpacity
-              style={[
-                styles.controlButton,
-                !isMicEnabled && styles.controlButtonActive,
-              ]}
-              onPress={toggleMicrophone}
-              disabled={!isInitialized}
-            >
-              <Feather
-                name={isMicEnabled ? "mic" : "mic-off"}
-                size={22}
-                color="#fff"
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.controlButton,
-                !isCameraEnabled && styles.controlButtonActive,
-              ]}
-              onPress={toggleCamera}
-              disabled={!isInitialized}
-            >
-              <Feather
-                name={isCameraEnabled ? "video" : "video-off"}
-                size={22}
-                color="#fff"
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.controlButton}
-              onPress={switchCamera}
-              disabled={!isInitialized || !isCameraEnabled}
-            >
-              <Feather name="refresh-cw" size={22} color="#fff" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.controlButton,
-                !isChatVisible && styles.controlButtonActive,
-              ]}
-              onPress={toggleChat}
-            >
-              <Feather name="message-circle" size={22} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Animated.View>
-
-      {/* Chat Section */}
-      {isChatVisible && (
-        <Animated.View style={[styles.chatContainer, chatContainerStyle]}>
-          <View style={styles.chatHeader}>
-            <Text style={styles.chatTitle}>Live Chat</Text>
-            <View style={styles.chatStatusContainer}>
-              {isChatInitialized ? (
-                isChatLoggedIn ? (
-                  <Text style={styles.chatStatusText}>Connected</Text>
-                ) : (
-                  <Text style={[styles.chatStatusText, styles.chatStatusError]}>
-                    Not logged in
-                  </Text>
-                )
-              ) : (
-                <Text style={styles.chatStatusText}>Initializing...</Text>
-              )}
-            </View>
-            <TouchableOpacity
-              onPress={toggleChat}
-              style={styles.chatCloseButton}
-            >
-              <Feather name="x" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
+        {/* Chat container with gesture support */}
+        <View
+          style={[
+            styles.tiktokChatContainer,
+            isKeyboardVisible && { bottom: Platform.OS === "ios" ? 120 : 100 },
+          ]}
+          {...panResponder.panHandlers}
+        >
           {chatError && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{chatError}</Text>
@@ -806,10 +713,14 @@ export default function LiveStreamingScreen() {
             ref={chatListRef}
             data={chatMessages}
             keyExtractor={(item) => item.id}
-            style={styles.chatList}
-            inverted={false}
+            renderItem={renderChatMessage}
+            style={styles.tiktokChatList}
+            contentContainerStyle={styles.tiktokChatListContent}
             onEndReached={hasMoreMessages ? loadMoreMessages : undefined}
             onEndReachedThreshold={0.3}
+            showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
             ListHeaderComponent={
               isLoadingMore ? (
                 <View style={styles.loadingMoreContainer}>
@@ -820,25 +731,16 @@ export default function LiveStreamingScreen() {
                 </View>
               ) : null
             }
-            renderItem={({ item }) => (
-              <View style={styles.chatMessage}>
-                <View style={styles.avatarContainer}>
-                  <Text style={styles.avatarText}>{item.avatar}</Text>
-                </View>
-                <View style={styles.messageContent}>
-                  <View style={styles.messageHeader}>
-                    <Text style={styles.messageUser}>{item.user}</Text>
-                    <Text style={styles.messageTime}>
-                      {formatTimestamp(item.timestamp)}
-                    </Text>
-                  </View>
-                  <Text style={styles.messageText}>{item.message}</Text>
-                </View>
-              </View>
-            )}
-            onContentSizeChange={() =>
-              chatListRef.current?.scrollToEnd({ animated: true })
-            }
+            onContentSizeChange={() => {
+              // Only auto-scroll to bottom for new messages if we're already at the bottom
+              if (
+                chatListRef.current &&
+                chatMessages.length > 0 &&
+                isAutoScrollEnabled
+              ) {
+                chatListRef.current.scrollToEnd({ animated: false });
+              }
+            }}
             ListEmptyComponent={
               <View style={styles.emptyChat}>
                 <Text style={styles.emptyChatText}>
@@ -848,41 +750,180 @@ export default function LiveStreamingScreen() {
             }
           />
 
-          <View style={styles.chatInputContainer}>
-            <TextInput
-              style={styles.chatInput}
-              value={newMessage}
-              onChangeText={setNewMessage}
-              placeholder="Type a message..."
-              placeholderTextColor="#94a3b8"
-              returnKeyType="send"
-              onSubmitEditing={sendMessage}
-              editable={isChatLoggedIn}
-            />
+          {/* Show return to bottom button only when needed */}
+          {!isAutoScrollEnabled && (
             <TouchableOpacity
-              style={[
-                styles.sendButton,
-                (!newMessage.trim() || !isChatLoggedIn || isChatSending) &&
-                  styles.sendButtonDisabled,
-              ]}
-              onPress={sendMessage}
-              disabled={!newMessage.trim() || !isChatLoggedIn || isChatSending}
+              style={styles.autoScrollButton}
+              onPress={scrollToBottom}
             >
-              <Feather name="send" size={18} color="#fff" />
+              <Feather name="arrow-down-circle" size={20} color="#fff" />
             </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Replace the View with KeyboardAvoidingView */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 10}
+          style={styles.keyboardAvoidingView}
+        >
+          <View style={styles.inputRowContainer}>
+            {/* Cart button on the left */}
+            <TouchableOpacity
+              style={styles.inputSideButton}
+              onPress={handleCartButtonPress}
+            >
+              <Feather name="shopping-cart" size={22} color="#fff" />
+            </TouchableOpacity>
+
+            {/* Chat input in the middle - now smaller */}
+            <View style={styles.persistentChatInputContainer}>
+              <TouchableOpacity
+                style={styles.chatInputWrapper}
+                activeOpacity={0.8}
+                onPress={focusInput}
+              >
+                <TextField
+                  ref={inputRef}
+                  value={newMessage}
+                  onChangeText={setNewMessage}
+                  placeholder="Type a message..."
+                  placeholderTextColor="#94a3b8"
+                  returnKeyType="send"
+                  onSubmitEditing={sendMessage}
+                  enableErrors={false}
+                  fieldStyle={styles.uiLibInputField}
+                  style={styles.uiLibInputText}
+                  containerStyle={styles.uiLibInputContainer}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  showCharCounter={false}
+                  hideUnderline
+                />
+              </TouchableOpacity>
+
+              {/* Send button */}
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  (!newMessage.trim() || !isChatLoggedIn || isChatSending) &&
+                    styles.sendButtonDisabled,
+                ]}
+                onPress={sendMessage}
+                disabled={
+                  !newMessage.trim() || !isChatLoggedIn || isChatSending
+                }
+              >
+                <Feather name="send" size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+
+        {/* Overlay Controls - Now only shown when needed */}
+        <Animated.View style={[styles.overlayControls, controlsStyle]}>
+          {/* Top Row: Header with info */}
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <View style={styles.liveIndicator}>
+                <Text style={styles.liveText}>LIVE</Text>
+              </View>
+              <Text style={styles.durationText}>
+                {formatDuration(streamDuration)}
+              </Text>
+            </View>
+
+            <Text style={styles.titleText} numberOfLines={1}>
+              {streamInfo.title}
+            </Text>
+
+            <View style={styles.headerRight}>
+              <View style={styles.viewerContainer}>
+                <Feather name="eye" size={14} color="#fff" />
+                <Text style={styles.viewerCount}>{viewerCount}</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.endButton}
+                onPress={confirmEndStream}
+                disabled={isEndingStream}
+              >
+                {isEndingStream ? (
+                  <Text style={styles.endButtonText}>Ending...</Text>
+                ) : (
+                  <Text style={styles.endButtonText}>End</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </Animated.View>
-      )}
 
-      {/* Products Modal */}
-      <ProductsBottomSheet
-        visible={isProductsModalVisible}
-        onClose={closeProductsModal}
-        products={SAMPLE_PRODUCTS}
-        onAddToCart={handleAddToCart}
-        onBuyNow={handleBuyNow}
-      />
-    </View>
+        {/* Settings Panel - Only visible when settings button is clicked */}
+        {isSettingsVisible && (
+          <View style={styles.settingsPanel}>
+            <View style={styles.settingsPanelHeader}>
+              <Text style={styles.settingsPanelTitle}>Stream Settings</Text>
+              <TouchableOpacity onPress={toggleSettings}>
+                <Feather name="x" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.settingsControls}>
+              <TouchableOpacity
+                style={[
+                  styles.settingButton,
+                  !isMicEnabled && styles.settingButtonActive,
+                ]}
+                onPress={toggleMicrophone}
+                disabled={!isInitialized}
+              >
+                <Feather
+                  name={isMicEnabled ? "mic" : "mic-off"}
+                  size={24}
+                  color="#fff"
+                />
+                <Text style={styles.settingButtonText}>
+                  {isMicEnabled ? "Mute Mic" : "Unmute Mic"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.settingButton,
+                  !isCameraEnabled && styles.settingButtonActive,
+                ]}
+                onPress={toggleCamera}
+                disabled={!isInitialized}
+              >
+                <Feather
+                  name={isCameraEnabled ? "video" : "video-off"}
+                  size={24}
+                  color="#fff"
+                />
+                <Text style={styles.settingButtonText}>
+                  {isCameraEnabled ? "Turn Off Camera" : "Turn On Camera"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.settingButton}
+                onPress={switchCamera}
+                disabled={!isInitialized || !isCameraEnabled}
+              >
+                <Feather name="refresh-cw" size={24} color="#fff" />
+                <Text style={styles.settingButtonText}>Switch Camera</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Products Modal */}
+        <ProductsBottomSheet
+          visible={isProductsModalVisible}
+          onClose={closeProductsModal}
+          products={listProduct}
+        />
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -935,6 +976,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: "space-between",
     backgroundColor: "rgba(0, 0, 0, 0.3)",
+    pointerEvents: "box-none", // Allow touches to pass through to elements below
   },
   header: {
     flexDirection: "row",
@@ -1001,30 +1043,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 12,
   },
+  // Update the bottomControls style to be removed or hidden
   bottomControls: {
-    padding: 16,
-    alignItems: "center",
-  },
-  controlsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    borderRadius: 30,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  controlButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: 8,
-  },
-  controlButtonActive: {
-    backgroundColor: myTheme.primary,
+    display: "none", // Hide the old bottom controls
   },
   chatButton: {
     position: "absolute",
@@ -1063,95 +1084,115 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 4,
   },
-  chatBadgeText: {
+  cartBadgeText: {
     color: "#fff",
     fontSize: 10,
     fontWeight: "bold",
   },
-  chatContainer: {
+  // TikTok-style chat container
+  tiktokChatContainer: {
     position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
+    bottom: 80, // Leave space for the chat input
     left: 0,
-    width: "100%",
-    backgroundColor: "rgba(15, 23, 42, 0.95)",
-    display: "flex",
-    flexDirection: "column",
+    right: 0,
+    maxHeight: height * 0.5, // Take up to half the screen height
+    paddingHorizontal: 16,
+    pointerEvents: "box-none", // Allow touches to pass through to elements below
   },
-  chatHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  chatList: {
+  tiktokChatList: {
     flex: 1,
-    padding: 16,
   },
-  chatMessage: {
+  tiktokChatListContent: {
+    paddingBottom: 8,
+  },
+  tiktokChatMessage: {
     flexDirection: "row",
-    marginBottom: 16,
+    alignItems: "center",
+    marginBottom: 8,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     maxWidth: "85%",
+    alignSelf: "flex-start",
   },
-  avatarContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  tiktokAvatarContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: myTheme.primary,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 8,
   },
-  avatarText: {
+  tiktokAvatarText: {
     color: "#ffffff",
     fontSize: 12,
     fontWeight: "600",
   },
-  messageContent: {
+  tiktokMessageContent: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 12,
-    padding: 8,
-    borderTopLeftRadius: 4,
   },
-  messageHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 2,
-  },
-  messageUser: {
+  tiktokMessageUser: {
     color: "#e2e8f0",
     fontSize: 12,
     fontWeight: "600",
   },
-  messageTime: {
-    color: "rgba(255, 255, 255, 0.5)",
-    fontSize: 10,
-  },
-  messageText: {
+  tiktokMessageText: {
     color: "#f8fafc",
     fontSize: 14,
   },
-  chatInputContainer: {
-    flexDirection: "row",
-    padding: 14,
-    marginBottom: 16,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.1)",
-    backgroundColor: "rgba(15, 23, 42, 0.95)",
+  keyboardAvoidingView: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
   },
-  chatInput: {
+  persistentChatInputContainer: {
+    flex: 1, // Changed from 0.7 to 1 for full width
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.8)",
+    borderRadius: 24,
+    paddingHorizontal: 8,
+    paddingVertical: 4, // Reduced from 8 to 4
+    marginHorizontal: 8,
+    zIndex: 100,
+    pointerEvents: "auto",
+  },
+  chatInputWrapper: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    height: 36, // Reduced from 40 to 36
+    justifyContent: "center",
+    pointerEvents: "auto", // Ensure it can receive touch events
+  },
+  // Styles for react-native-ui-lib TextField
+  uiLibInputContainer: {
+    flex: 1,
+    height: 36, // Reduced from 40 to 36
+    backgroundColor: "transparent",
+    pointerEvents: "auto", // Ensure it can receive touch events
+  },
+  uiLibInputField: {
+    backgroundColor: "transparent",
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+  },
+  uiLibInputText: {
     color: "#ffffff",
+    fontSize: 14,
+    height: 36, // Reduced from 40 to 36
+    paddingVertical: 4, // Reduced from 8 to 4
+    paddingHorizontal: 12,
+  },
+  persistentChatInput: {
+    flex: 1,
+    color: "#ffffff",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    height: 40,
   },
   sendButton: {
     width: 36,
@@ -1165,36 +1206,10 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: "rgba(255, 255, 255, 0.2)",
   },
-  chatCloseButton: {
-    padding: 10,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  chatTitle: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  chatStatusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginLeft: 8,
-  },
-  chatStatusText: {
-    color: "#4ade80",
-    fontSize: 12,
-  },
-  chatStatusError: {
-    color: "#ef4444",
-  },
   errorContainer: {
-    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    backgroundColor: "rgba(239, 68, 68, 0.7)",
     padding: 12,
-    margin: 12,
+    marginBottom: 12,
     borderRadius: 8,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1219,10 +1234,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   emptyChat: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
     padding: 20,
+    alignItems: "center",
   },
   emptyChatText: {
     color: "rgba(255, 255, 255, 0.5)",
@@ -1239,17 +1252,28 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 12,
   },
-  cartButton: {
+  // Style for auto-scroll button
+  autoScrollButton: {
     position: "absolute",
-    left: 16,
-    top: 80,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    right: 16,
+    bottom: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: myTheme.primary,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 10,
+  },
+  settingsPanel: {
+    position: "absolute",
+    top: 80, // Position below the settings button
+    right: 16,
+    width: 250,
+    backgroundColor: "rgba(15, 23, 42, 0.95)",
+    borderRadius: 12,
+    padding: 16,
+    zIndex: 20,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -1262,21 +1286,76 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  cartBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    backgroundColor: "#ef4444",
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+  settingsPanelHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  settingsPanelTitle: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  settingsControls: {
+    gap: 12,
+  },
+  settingButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    padding: 12,
+    borderRadius: 8,
+  },
+  settingButtonActive: {
+    backgroundColor: myTheme.primary,
+  },
+  settingButtonText: {
+    color: "#ffffff",
+    marginLeft: 12,
+    fontSize: 14,
+  },
+  inputRowContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === "ios" ? 30 : 24,
+  },
+  inputSideButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 4,
+    marginHorizontal: 4,
   },
-  cartBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "bold",
+  settingsButton: {
+    position: "absolute",
+    top: 16,
+    left: 16, // Changed from right: 16 to left: 16
+    zIndex: 10,
+  },
+  actionButtonInner: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
   },
 });

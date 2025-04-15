@@ -109,9 +109,11 @@ export default function CreateLivestreamScreen() {
   >([]);
   const [thumbnailImage, setThumbnailImage] = useState<string | null>(null);
   const [thumbnailError, setThumbnailError] = useState<string | null>(null);
-  const [account, setAccount] = useState<{ id: string; name: string } | null>(
-    null
-  );
+  const [account, setAccount] = useState<{
+    id: string;
+    name: string;
+    brandId: string;
+  } | null>(null);
   const [productDiscounts, setProductDiscounts] = useState<{
     [key: string]: number;
   }>({});
@@ -132,6 +134,7 @@ export default function CreateLivestreamScreen() {
           setAccount({
             id: data.id,
             name: data.email || "Tài khoản của tôi",
+            brandId: data.brands?.[0]?.id || "",
           });
           setValue("account", data.id);
         }
@@ -852,6 +855,7 @@ export default function CreateLivestreamScreen() {
           onConfirm={handleProductSelectionConfirm}
           initialSelectedIds={selectedProducts}
           initialDiscounts={productDiscounts}
+          brandId={account?.brandId || ""}
         />
       </View>
     </View>
