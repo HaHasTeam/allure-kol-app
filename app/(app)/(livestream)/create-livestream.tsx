@@ -13,7 +13,6 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
-  FlatList,
 } from "react-native";
 import { Text, Card } from "react-native-ui-lib";
 import { useRouter } from "expo-router";
@@ -27,6 +26,8 @@ import ProductSelectionModal from "@/components/modals/product-selection-modal";
 import type { IResponseProduct } from "@/types/product";
 import useLivestreams from "@/hooks/api/useLivestreams";
 import useUser from "@/hooks/api/useUser";
+import { getCheapestClassification } from "@/utils/product";
+import ImageWithFallback from "@/components/image/ImageWithFallBack";
 
 const uploadFile = async (fileUri: string): Promise<string | null> => {
   try {
@@ -108,9 +109,11 @@ export default function CreateLivestreamScreen() {
   >([]);
   const [thumbnailImage, setThumbnailImage] = useState<string | null>(null);
   const [thumbnailError, setThumbnailError] = useState<string | null>(null);
-  const [account, setAccount] = useState<{ id: string; name: string } | null>(
-    null
-  );
+  const [account, setAccount] = useState<{
+    id: string;
+    name: string;
+    brandId: string;
+  } | null>(null);
   const [productDiscounts, setProductDiscounts] = useState<{
     [key: string]: number;
   }>({});
@@ -131,6 +134,7 @@ export default function CreateLivestreamScreen() {
           setAccount({
             id: data.id,
             name: data.email || "Tài khoản của tôi",
+            brandId: data.brands?.[0]?.id || "",
           });
           setValue("account", data.id);
         }
@@ -220,13 +224,11 @@ export default function CreateLivestreamScreen() {
       trigger("products");
     }, 50);
   };
+  console.log("selectedProductDetails", selectedProductDetails);
 
   // Update form value when products selection changes
   useEffect(() => {
     if (selectedProducts.length > 0) {
-      console.log(
-        `useEffect triggered: ${selectedProducts.length} sản phẩm trong state`
-      );
       setValue(
         "products",
         selectedProducts.map((id) => ({
@@ -391,461 +393,471 @@ export default function CreateLivestreamScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Thông tin Livestream</Text>
+      <View style={styles.mainContainer}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.contentContainer}
+        >
+          <Card style={styles.formCard}>
+            <Text style={styles.sectionTitle}>Thông tin Livestream</Text>
 
-          {/* Title Input */}
-          <View style={styles.formGroup}>
-            <RequiredLabel>Tiêu đề</RequiredLabel>
-            <Controller
-              control={control}
-              rules={{
-                required: "Tiêu đề là bắt buộc",
-                minLength: {
-                  value: 5,
-                  message: "Tiêu đề phải có ít nhất 5 ký tự",
-                },
-                maxLength: {
-                  value: 100,
-                  message: "Tiêu đề phải ít hơn 100 ký tự",
-                },
-              }}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.title && styles.inputError]}
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  placeholder="Nhập tiêu đề livestream"
-                  placeholderTextColor="#94a3b8"
-                  maxLength={100}
-                />
-              )}
-              name="title"
-            />
-            {errors.title && (
-              <Text style={styles.errorText}>{errors.title.message}</Text>
-            )}
-          </View>
-
-          {/* Start Date & Time */}
-          <View style={styles.formGroup}>
-            <RequiredLabel>Ngày & Giờ bắt đầu</RequiredLabel>
-            <View style={styles.dateTimeContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.dateTimeButton,
-                  errors.startTime && styles.inputError,
-                ]}
-                onPress={() => setShowStartDatePicker(true)}
-              >
-                <Feather
-                  name="calendar"
-                  size={16}
-                  color="#64748b"
-                  style={styles.dateTimeIcon}
-                />
-                <Text style={styles.dateTimeText}>{formatDate(startTime)}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.dateTimeButton,
-                  errors.startTime && styles.inputError,
-                ]}
-                onPress={() => setShowStartTimePicker(true)}
-              >
-                <Feather
-                  name="clock"
-                  size={16}
-                  color="#64748b"
-                  style={styles.dateTimeIcon}
-                />
-                <Text style={styles.dateTimeText}>{formatTime(startTime)}</Text>
-              </TouchableOpacity>
-            </View>
-            {errors.startTime && (
-              <Text style={styles.errorText}>{errors.startTime.message}</Text>
-            )}
-            <Text style={styles.helperText}>
-              Thời gian bắt đầu phải cách hiện tại ít nhất 4 giờ
-            </Text>
-
-            {showStartDatePicker && (
-              <DateTimePicker
-                value={startTime}
-                mode="date"
-                display="default"
-                minimumDate={minStartTime}
-                onChange={(event, selectedDate) => {
-                  setShowStartDatePicker(false);
-                  if (selectedDate) {
-                    const newDateTime = new Date(startTime);
-                    newDateTime.setFullYear(selectedDate.getFullYear());
-                    newDateTime.setMonth(selectedDate.getMonth());
-                    newDateTime.setDate(selectedDate.getDate());
-
-                    // Validate the new date
-                    const isValid = validateStartTime(newDateTime);
-                    if (isValid === true) {
-                      setValue("startTime", newDateTime, {
-                        shouldValidate: true,
-                      });
-                    } else {
-                      Alert.alert("Ngày không hợp lệ", isValid);
-                    }
-                  }
+            {/* Title Input */}
+            <View style={styles.formGroup}>
+              <RequiredLabel>Tiêu đề</RequiredLabel>
+              <Controller
+                control={control}
+                rules={{
+                  required: "Tiêu đề là bắt buộc",
+                  minLength: {
+                    value: 5,
+                    message: "Tiêu đề phải có ít nhất 5 ký tự",
+                  },
+                  maxLength: {
+                    value: 100,
+                    message: "Tiêu đề phải ít hơn 100 ký tự",
+                  },
                 }}
-              />
-            )}
-
-            {showStartTimePicker && (
-              <DateTimePicker
-                value={startTime}
-                mode="time"
-                display="default"
-                minimumDate={minStartTime}
-                onChange={(event, selectedTime) => {
-                  setShowStartTimePicker(false);
-                  if (selectedTime) {
-                    const newDateTime = new Date(startTime);
-                    newDateTime.setHours(selectedTime.getHours());
-                    newDateTime.setMinutes(selectedTime.getMinutes());
-
-                    // Validate the new time
-                    const isValid = validateStartTime(newDateTime);
-                    if (isValid === true) {
-                      setValue("startTime", newDateTime, {
-                        shouldValidate: true,
-                      });
-                    } else {
-                      Alert.alert("Giờ không hợp lệ", isValid);
-                    }
-                  }
-                }}
-              />
-            )}
-          </View>
-
-          {/* End Date & Time */}
-          <View style={styles.formGroup}>
-            <View style={styles.labelRow}>
-              <RequiredLabel>Ngày & Giờ kết thúc</RequiredLabel>
-            </View>
-            <View style={styles.dateTimeContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.dateTimeButton,
-                  errors.endTime && styles.inputError,
-                ]}
-                onPress={() => setShowEndDatePicker(true)}
-              >
-                <Feather
-                  name="calendar"
-                  size={16}
-                  color="#64748b"
-                  style={styles.dateTimeIcon}
-                />
-                <Text style={styles.dateTimeText}>
-                  {endTime ? formatDate(endTime) : "Chọn ngày"}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.dateTimeButton,
-                  errors.endTime && styles.inputError,
-                ]}
-                onPress={() => setShowEndTimePicker(true)}
-              >
-                <Feather
-                  name="clock"
-                  size={16}
-                  color="#64748b"
-                  style={styles.dateTimeIcon}
-                />
-                <Text style={styles.dateTimeText}>
-                  {endTime ? formatTime(endTime) : "Chọn giờ"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {errors.endTime && (
-              <Text style={styles.errorText}>{errors.endTime.message}</Text>
-            )}
-            <Text style={styles.helperText}>
-              Thời gian kết thúc là bắt buộc và phải sau thời gian bắt đầu
-            </Text>
-
-            {showEndDatePicker && (
-              <DateTimePicker
-                value={endTime || new Date(startTime.getTime() + 3600000)} // Default to 1 hour after start time
-                mode="date"
-                display="default"
-                minimumDate={startTime}
-                onChange={(event, selectedDate) => {
-                  setShowEndDatePicker(false);
-                  if (selectedDate) {
-                    const currentEndTime =
-                      endTime || new Date(startTime.getTime() + 3600000);
-                    const newDateTime = new Date(currentEndTime);
-                    newDateTime.setFullYear(selectedDate.getFullYear());
-                    newDateTime.setMonth(selectedDate.getMonth());
-                    newDateTime.setDate(selectedDate.getDate());
-
-                    // Validate the new date
-                    const isValid = validateEndTime(newDateTime);
-                    if (isValid === true) {
-                      setValue("endTime", newDateTime, {
-                        shouldValidate: true,
-                      });
-                    } else {
-                      Alert.alert("Ngày không hợp lệ", isValid);
-                    }
-                  }
-                }}
-              />
-            )}
-
-            {showEndTimePicker && (
-              <DateTimePicker
-                value={endTime || new Date(startTime.getTime() + 3600000)} // Default to 1 hour after start time
-                mode="time"
-                display="default"
-                onChange={(event, selectedTime) => {
-                  setShowEndTimePicker(false);
-                  if (selectedTime) {
-                    const currentEndTime =
-                      endTime || new Date(startTime.getTime() + 3600000);
-                    const newDateTime = new Date(currentEndTime);
-                    newDateTime.setHours(selectedTime.getHours());
-                    newDateTime.setMinutes(selectedTime.getMinutes());
-
-                    // Validate the new time
-                    const isValid = validateEndTime(newDateTime);
-                    if (isValid === true) {
-                      setValue("endTime", newDateTime, {
-                        shouldValidate: true,
-                      });
-                    } else {
-                      Alert.alert("Giờ không hợp lệ", isValid);
-                    }
-                  }
-                }}
-              />
-            )}
-          </View>
-
-          {/* Thumbnail */}
-          <View style={styles.formGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.label}>Ảnh thumbnail</Text>
-              <Text style={styles.optionalText}>(Tùy chọn)</Text>
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.thumbnailContainer,
-                thumbnailError && styles.inputError,
-              ]}
-              onPress={pickThumbnail}
-            >
-              {thumbnailImage ? (
-                <Image
-                  source={{ uri: thumbnailImage }}
-                  style={styles.thumbnailImage}
-                />
-              ) : (
-                <View style={styles.thumbnailPlaceholder}>
-                  <Feather name="image" size={24} color="#94a3b8" />
-                  <Text style={styles.thumbnailText}>
-                    Tải lên ảnh thumbnail
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            {thumbnailError && (
-              <Text style={styles.errorText}>{thumbnailError}</Text>
-            )}
-            <Text style={styles.helperText}>
-              Khuyến nghị: tỷ lệ 16:9, tối đa 5MB
-            </Text>
-          </View>
-        </Card>
-
-        {/* Products Selection */}
-        <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>
-            Chọn sản phẩm <Text style={styles.requiredAsterisk}>*</Text>
-          </Text>
-          <Text style={styles.sectionDescription}>
-            Chọn sản phẩm để hiển thị trong buổi livestream của bạn
-          </Text>
-
-          <TouchableOpacity
-            style={styles.selectProductsButton}
-            onPress={openProductModal}
-          >
-            <Feather
-              name="shopping-bag"
-              size={20}
-              color="#fff"
-              style={styles.selectProductsIcon}
-            />
-            <Text style={styles.selectProductsText}>
-              {selectedProducts.length > 0
-                ? `Quản lý sản phẩm (${selectedProducts.length})`
-                : "Chọn sản phẩm"}
-            </Text>
-          </TouchableOpacity>
-
-          {selectedProductDetails.length > 0 ? (
-            <View style={styles.selectedProductsContainer}>
-              <View style={styles.selectedProductsHeader}>
-                <Text style={styles.selectedProductsTitle}>
-                  Sản phẩm đã chọn ({selectedProductDetails.length})
-                </Text>
-                {selectedProductDetails.length > 0 && (
-                  <TouchableOpacity
-                    style={styles.viewAllButton}
-                    onPress={openProductModal}
-                  >
-                    <Text style={styles.viewAllText}>Quản lý</Text>
-                  </TouchableOpacity>
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.title && styles.inputError]}
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    placeholder="Nhập tiêu đề livestream"
+                    placeholderTextColor="#94a3b8"
+                    maxLength={100}
+                  />
                 )}
+                name="title"
+              />
+              {errors.title && (
+                <Text style={styles.errorText}>{errors.title.message}</Text>
+              )}
+            </View>
+
+            {/* Start Date & Time */}
+            <View style={styles.formGroup}>
+              <RequiredLabel>Ngày & Giờ bắt đầu</RequiredLabel>
+              <View style={styles.dateTimeContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.dateTimeButton,
+                    errors.startTime && styles.inputError,
+                  ]}
+                  onPress={() => setShowStartDatePicker(true)}
+                >
+                  <Feather
+                    name="calendar"
+                    size={16}
+                    color="#64748b"
+                    style={styles.dateTimeIcon}
+                  />
+                  <Text style={styles.dateTimeText}>
+                    {formatDate(startTime)}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.dateTimeButton,
+                    errors.startTime && styles.inputError,
+                  ]}
+                  onPress={() => setShowStartTimePicker(true)}
+                >
+                  <Feather
+                    name="clock"
+                    size={16}
+                    color="#64748b"
+                    style={styles.dateTimeIcon}
+                  />
+                  <Text style={styles.dateTimeText}>
+                    {formatTime(startTime)}
+                  </Text>
+                </TouchableOpacity>
               </View>
+              {errors.startTime && (
+                <Text style={styles.errorText}>{errors.startTime.message}</Text>
+              )}
+              <Text style={styles.helperText}>
+                Thời gian bắt đầu phải cách hiện tại ít nhất 4 giờ
+              </Text>
 
-              <FlatList
-                data={selectedProductDetails}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.selectedProductsScroll}
-                keyExtractor={(item) => item.id || Math.random().toString()}
-                renderItem={({ item }) => {
-                  // Get the main image URL or a placeholder
+              {showStartDatePicker && (
+                <DateTimePicker
+                  value={startTime}
+                  mode="date"
+                  display="default"
+                  minimumDate={minStartTime}
+                  onChange={(event, selectedDate) => {
+                    setShowStartDatePicker(false);
+                    if (selectedDate) {
+                      const newDateTime = new Date(startTime);
+                      newDateTime.setFullYear(selectedDate.getFullYear());
+                      newDateTime.setMonth(selectedDate.getMonth());
+                      newDateTime.setDate(selectedDate.getDate());
 
-                  const imageUrl =
-                    item.images &&
-                    item.images.length > 0 &&
-                    item.images[0].fileUrl
-                      ? item.images[0].fileUrl
-                      : "https://via.placeholder.com/100";
+                      // Validate the new date
+                      const isValid = validateStartTime(newDateTime);
+                      if (isValid === true) {
+                        setValue("startTime", newDateTime, {
+                          shouldValidate: true,
+                        });
+                      } else {
+                        Alert.alert("Ngày không hợp lệ", isValid);
+                      }
+                    }
+                  }}
+                />
+              )}
 
-                  // Format price with currency
-                  const formattedPrice = item.price
-                    ? `${item.price.toLocaleString("vi-VN")}đ`
-                    : "Chưa có giá";
+              {showStartTimePicker && (
+                <DateTimePicker
+                  value={startTime}
+                  mode="time"
+                  display="default"
+                  minimumDate={minStartTime}
+                  onChange={(event, selectedTime) => {
+                    setShowStartTimePicker(false);
+                    if (selectedTime) {
+                      const newDateTime = new Date(startTime);
+                      newDateTime.setHours(selectedTime.getHours());
+                      newDateTime.setMinutes(selectedTime.getMinutes());
 
-                  // Get discount percentage for display (0-100%)
-                  const discount = productDiscounts[item.id || ""] || 0;
-                  const discountPercentage = Math.round(discount * 100);
+                      // Validate the new time
+                      const isValid = validateStartTime(newDateTime);
+                      if (isValid === true) {
+                        setValue("startTime", newDateTime, {
+                          shouldValidate: true,
+                        });
+                      } else {
+                        Alert.alert("Giờ không hợp lệ", isValid);
+                      }
+                    }
+                  }}
+                />
+              )}
+            </View>
 
-                  // Calculate discounted price
-                  const discountedPrice = item.price
-                    ? item.price * (1 - discount)
-                    : 0;
-                  const formattedDiscountedPrice = `${discountedPrice.toLocaleString(
-                    "vi-VN"
-                  )}đ`;
+            {/* End Date & Time */}
+            <View style={styles.formGroup}>
+              <View style={styles.labelRow}>
+                <RequiredLabel>Ngày & Giờ kết thúc</RequiredLabel>
+              </View>
+              <View style={styles.dateTimeContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.dateTimeButton,
+                    errors.endTime && styles.inputError,
+                  ]}
+                  onPress={() => setShowEndDatePicker(true)}
+                >
+                  <Feather
+                    name="calendar"
+                    size={16}
+                    color="#64748b"
+                    style={styles.dateTimeIcon}
+                  />
+                  <Text style={styles.dateTimeText}>
+                    {endTime ? formatDate(endTime) : "Chọn ngày"}
+                  </Text>
+                </TouchableOpacity>
 
-                  return (
-                    <View key={item.id} style={styles.selectedProductItem}>
-                      <Image
-                        source={{ uri: imageUrl }}
-                        style={styles.selectedProductImage}
-                      />
-                      <View style={styles.selectedProductBadge}>
-                        <Feather name="check" size={12} color="#fff" />
-                      </View>
-                      <View style={styles.selectedProductInfo}>
-                        <Text
-                          style={styles.selectedProductName}
-                          numberOfLines={1}
-                        >
-                          {item.name}
-                        </Text>
-                        {discount > 0 ? (
-                          <View>
-                            <Text style={styles.selectedProductPrice}>
-                              {formattedDiscountedPrice}
-                            </Text>
-                            <Text style={styles.selectedProductOriginalPrice}>
-                              Giá gốc {formattedPrice} ({discountPercentage}%
-                              giảm)
-                            </Text>
-                          </View>
-                        ) : (
-                          <Text style={styles.selectedProductPrice}>
-                            {formattedPrice}
-                          </Text>
-                        )}
-                        <View style={styles.selectedProductMeta}>
-                          <Text style={styles.selectedProductStock}>
-                            {item.quantity !== undefined
-                              ? `Còn ${item.quantity} sản phẩm`
-                              : ""}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                }}
-                ListEmptyComponent={
-                  <View style={styles.emptyProductsContainer}>
-                    <Feather name="shopping-bag" size={24} color="#94a3b8" />
-                    <Text style={styles.emptyProductsText}>
-                      Chưa chọn sản phẩm nào
+                <TouchableOpacity
+                  style={[
+                    styles.dateTimeButton,
+                    errors.endTime && styles.inputError,
+                  ]}
+                  onPress={() => setShowEndTimePicker(true)}
+                >
+                  <Feather
+                    name="clock"
+                    size={16}
+                    color="#64748b"
+                    style={styles.dateTimeIcon}
+                  />
+                  <Text style={styles.dateTimeText}>
+                    {endTime ? formatTime(endTime) : "Chọn giờ"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {errors.endTime && (
+                <Text style={styles.errorText}>{errors.endTime.message}</Text>
+              )}
+              <Text style={styles.helperText}>
+                Thời gian kết thúc là bắt buộc và phải sau thời gian bắt đầu
+              </Text>
+
+              {showEndDatePicker && (
+                <DateTimePicker
+                  value={endTime || new Date(startTime.getTime() + 3600000)} // Default to 1 hour after start time
+                  mode="date"
+                  display="default"
+                  minimumDate={startTime}
+                  onChange={(event, selectedDate) => {
+                    setShowEndDatePicker(false);
+                    if (selectedDate) {
+                      const currentEndTime =
+                        endTime || new Date(startTime.getTime() + 3600000);
+                      const newDateTime = new Date(currentEndTime);
+                      newDateTime.setFullYear(selectedDate.getFullYear());
+                      newDateTime.setMonth(selectedDate.getMonth());
+                      newDateTime.setDate(selectedDate.getDate());
+
+                      // Validate the new date
+                      const isValid = validateEndTime(newDateTime);
+                      if (isValid === true) {
+                        setValue("endTime", newDateTime, {
+                          shouldValidate: true,
+                        });
+                      } else {
+                        Alert.alert("Ngày không hợp lệ", isValid);
+                      }
+                    }
+                  }}
+                />
+              )}
+
+              {showEndTimePicker && (
+                <DateTimePicker
+                  value={endTime || new Date(startTime.getTime() + 3600000)} // Default to 1 hour after start time
+                  mode="time"
+                  display="default"
+                  onChange={(event, selectedTime) => {
+                    setShowEndTimePicker(false);
+                    if (selectedTime) {
+                      const currentEndTime =
+                        endTime || new Date(startTime.getTime() + 3600000);
+                      const newDateTime = new Date(currentEndTime);
+                      newDateTime.setHours(selectedTime.getHours());
+                      newDateTime.setMinutes(selectedTime.getMinutes());
+
+                      // Validate the new time
+                      const isValid = validateEndTime(newDateTime);
+                      if (isValid === true) {
+                        setValue("endTime", newDateTime, {
+                          shouldValidate: true,
+                        });
+                      } else {
+                        Alert.alert("Giờ không hợp lệ", isValid);
+                      }
+                    }
+                  }}
+                />
+              )}
+            </View>
+
+            {/* Thumbnail */}
+            <View style={styles.formGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Ảnh thumbnail</Text>
+                <Text style={styles.optionalText}>(Tùy chọn)</Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.thumbnailContainer,
+                  thumbnailError && styles.inputError,
+                ]}
+                onPress={pickThumbnail}
+              >
+                {thumbnailImage ? (
+                  <Image
+                    source={{ uri: thumbnailImage }}
+                    style={styles.thumbnailImage}
+                  />
+                ) : (
+                  <View style={styles.thumbnailPlaceholder}>
+                    <Feather name="image" size={24} color="#94a3b8" />
+                    <Text style={styles.thumbnailText}>
+                      Tải lên ảnh thumbnail
                     </Text>
                   </View>
-                }
-              />
-            </View>
-          ) : (
-            <View style={styles.emptyProductsContainer}>
-              <Feather name="shopping-bag" size={24} color="#94a3b8" />
-              <Text style={styles.emptyProductsText}>
-                Chưa chọn sản phẩm nào
-              </Text>
-              <Text style={styles.emptyProductsSubtext}>
-                Vui lòng chọn ít nhất một sản phẩm
+                )}
+              </TouchableOpacity>
+              {thumbnailError && (
+                <Text style={styles.errorText}>{thumbnailError}</Text>
+              )}
+              <Text style={styles.helperText}>
+                Khuyến nghị: tỷ lệ 16:9, tối đa 5MB
               </Text>
             </View>
-          )}
-        </Card>
+          </Card>
 
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            (isSubmitting || selectedProducts.length === 0) &&
-              styles.submitButtonDisabled,
-          ]}
-          onPress={handleSubmit(onSubmit)}
-          disabled={isSubmitting || selectedProducts.length === 0}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
+          {/* Products Selection */}
+          <Card style={styles.formCard}>
+            <Text style={styles.sectionTitle}>
+              Chọn sản phẩm <Text style={styles.requiredAsterisk}>*</Text>
+            </Text>
+            <Text style={styles.sectionDescription}>
+              Chọn sản phẩm để hiển thị trong buổi livestream của bạn
+            </Text>
+
+            <TouchableOpacity
+              style={styles.selectProductsButton}
+              onPress={openProductModal}
+            >
               <Feather
-                name="video"
+                name="shopping-bag"
                 size={20}
                 color="#fff"
-                style={styles.submitButtonIcon}
+                style={styles.selectProductsIcon}
               />
-              <Text style={styles.submitButtonText}>Lên lịch Livestream</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
+              <Text style={styles.selectProductsText}>
+                {selectedProducts.length > 0
+                  ? `Quản lý sản phẩm (${selectedProducts.length})`
+                  : "Chọn sản phẩm"}
+              </Text>
+            </TouchableOpacity>
 
-      {/* Product Selection Modal */}
-      <ProductSelectionModal
-        visible={productModalVisible}
-        onClose={() => setProductModalVisible(false)}
-        onConfirm={handleProductSelectionConfirm}
-        initialSelectedIds={selectedProducts}
-        initialDiscounts={productDiscounts}
-      />
+            {selectedProductDetails.length > 0 ? (
+              <View style={styles.selectedProductsContainer}>
+                <View style={styles.selectedProductsHeader}>
+                  <Text style={styles.selectedProductsTitle}>
+                    Sản phẩm đã chọn ({selectedProductDetails.length})
+                  </Text>
+                  {selectedProductDetails.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.viewAllButton}
+                      onPress={openProductModal}
+                    >
+                      <Text style={styles.viewAllText}>Quản lý</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.selectedProductsScroll}
+                >
+                  {selectedProductDetails.length > 0 ? (
+                    selectedProductDetails.map((item) => {
+                      const imageUrl =
+                        item.images &&
+                        item.images.length > 0 &&
+                        item.images[0].fileUrl
+                          ? item.images[0].fileUrl
+                          : "https://via.placeholder.com/100";
+                      const productClassification = getCheapestClassification(
+                        item.productClassifications ?? []
+                      );
+                      // Format price with currency
+                      const formattedPrice =
+                        productClassification && productClassification.price
+                          ? `${productClassification.price.toLocaleString(
+                              "vi-VN"
+                            )}đ`
+                          : "Chưa có giá";
+
+                      const discount = productDiscounts[item.id || ""] || 0;
+
+                      // Calculate discounted price
+                      const discountedPrice =
+                        productClassification && productClassification.price
+                          ? productClassification.price * (1 - discount)
+                          : 0;
+
+                      const formattedDiscountedPrice = `${discountedPrice.toLocaleString(
+                        "vi-VN"
+                      )}đ`;
+
+                      return (
+                        <View key={item.id} style={styles.selectedProductItem}>
+                          <ImageWithFallback
+                            source={{ uri: imageUrl }}
+                            style={styles.selectedProductImage}
+                          />
+                          <View style={styles.selectedProductBadge}>
+                            <Feather name="check" size={12} color="#fff" />
+                          </View>
+                          <View style={styles.selectedProductInfo}>
+                            <Text
+                              style={styles.selectedProductName}
+                              numberOfLines={1}
+                            >
+                              {item.name}
+                            </Text>
+                            {discount > 0 ? (
+                              <View>
+                                <Text style={styles.selectedProductPrice}>
+                                  {formattedDiscountedPrice}
+                                </Text>
+                                <Text
+                                  style={styles.selectedProductOriginalPrice}
+                                >
+                                  Giá gốc {formattedPrice}
+                                </Text>
+                              </View>
+                            ) : (
+                              <Text style={styles.selectedProductPrice}>
+                                {formattedPrice}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      );
+                    })
+                  ) : (
+                    <View style={styles.emptyProductsContainer}>
+                      <Feather name="shopping-bag" size={24} color="#94a3b8" />
+                      <Text style={styles.emptyProductsText}>
+                        Chưa chọn sản phẩm nào
+                      </Text>
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
+            ) : (
+              <View style={styles.emptyProductsContainer}>
+                <Feather name="shopping-bag" size={24} color="#94a3b8" />
+                <Text style={styles.emptyProductsText}>
+                  Chưa chọn sản phẩm nào
+                </Text>
+                <Text style={styles.emptyProductsSubtext}>
+                  Vui lòng chọn ít nhất một sản phẩm
+                </Text>
+              </View>
+            )}
+          </Card>
+        </ScrollView>
+
+        {/* Fixed Submit Button */}
+        <View style={styles.fixedButtonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              (isSubmitting || selectedProducts.length === 0) &&
+                styles.submitButtonDisabled,
+            ]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={isSubmitting || selectedProducts.length === 0}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Feather
+                  name="video"
+                  size={20}
+                  color="#fff"
+                  style={styles.submitButtonIcon}
+                />
+                <Text style={styles.submitButtonText}>Lên lịch Livestream</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Product Selection Modal */}
+        <ProductSelectionModal
+          visible={productModalVisible}
+          onClose={() => setProductModalVisible(false)}
+          onConfirm={handleProductSelectionConfirm}
+          initialSelectedIds={selectedProducts}
+          initialDiscounts={productDiscounts}
+          brandId={account?.brandId || ""}
+        />
+      </View>
     </View>
   );
 }
@@ -879,6 +891,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  contentContainer: {
+    paddingBottom: 100, // Increased padding to ensure content isn't hidden behind fixed button
   },
   formCard: {
     marginBottom: 16,
@@ -1115,7 +1130,6 @@ const styles = StyleSheet.create({
     backgroundColor: myTheme.primary,
     paddingVertical: 16,
     borderRadius: 12,
-    marginBottom: 40,
     ...Platform.select({
       ios: {
         shadowColor: myTheme.primary,
@@ -1142,5 +1156,21 @@ const styles = StyleSheet.create({
   requiredAsterisk: {
     color: "#ef4444",
     fontWeight: "bold",
+  },
+  mainContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  fixedButtonContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+    zIndex: 10, // Ensure button stays on top
   },
 });

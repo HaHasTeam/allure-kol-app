@@ -15,14 +15,15 @@ import { Platform, PermissionsAndroid, Alert } from "react-native";
 
 /**
  * Hook for preparing a livestream with Agora RTC
+ * with additional functionality for tracking viewer count
  */
-export const useStreamPreparation = ({
+export const useStreamWithAttachment = ({
   appId,
   channel,
   token,
   userId,
   enableVideo = true,
-  autoJoin = true, // New parameter to control auto-joining
+  autoJoin = true,
 }: {
   appId: string;
   channel: string;
@@ -38,6 +39,10 @@ export const useStreamPreparation = ({
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [isFrontCamera, setIsFrontCamera] = useState(true);
   const [tokenError, setTokenError] = useState(false);
+
+  // Add state for tracking viewer count
+  const [viewerCount, setViewerCount] = useState(0);
+  const viewersRef = useRef<Set<number | string>>(new Set());
 
   // Create the engine instance
   const engine = useRef<IRtcEngineEx>(createAgoraRtcEngine() as IRtcEngineEx);
@@ -241,7 +246,7 @@ export const useStreamPreparation = ({
 
   // Event handlers
   const onError = useCallback((err: ErrorCodeType, msg: string) => {
-    log.error("Agora error: hello", err, msg);
+    log.error("Agora error:", err, msg);
 
     // Handle token expiration errors
     if (err === 109 || err === 110) {
@@ -257,8 +262,7 @@ export const useStreamPreparation = ({
         "Successfully joined channel:",
         connection.channelId,
         "with local UID:",
-        connection.localUid,
-        channel
+        connection.localUid
       );
 
       // Don't check the UID, just check the channel ID
@@ -267,6 +271,10 @@ export const useStreamPreparation = ({
         log.info("Setting joinChannelSuccess to true");
         setJoinChannelSuccess(true);
         setTokenError(false);
+
+        // Add ourselves to the viewer count
+        viewersRef.current.add(userId || "broadcaster");
+        setViewerCount(viewersRef.current.size);
       } else {
         log.warn(
           "Channel ID mismatch:",
@@ -276,7 +284,7 @@ export const useStreamPreparation = ({
         );
       }
     },
-    [channel]
+    [channel, userId]
   );
 
   const onLeaveChannel = useCallback(
@@ -285,6 +293,10 @@ export const useStreamPreparation = ({
       if (connection.channelId === channel) {
         setJoinChannelSuccess(false);
         setRemoteUsers([]);
+
+        // Clear viewer count when leaving channel
+        viewersRef.current.clear();
+        setViewerCount(0);
       }
     },
     [channel]
@@ -295,6 +307,10 @@ export const useStreamPreparation = ({
       log.debug("Remote user joined:", remoteUid);
       if (connection.channelId === channel) {
         setRemoteUsers((prev) => [...prev, remoteUid]);
+
+        // Add to viewer count
+        viewersRef.current.add(remoteUid);
+        setViewerCount(viewersRef.current.size);
       }
     },
     [channel]
@@ -309,10 +325,18 @@ export const useStreamPreparation = ({
       log.debug("Remote user left:", remoteUid);
       if (connection.channelId === channel) {
         setRemoteUsers((prev) => prev.filter((uid) => uid !== remoteUid));
+
+        // Remove from viewer count
+        viewersRef.current.delete(remoteUid);
+        setViewerCount(viewersRef.current.size);
       }
     },
     [channel]
   );
+
+  const onUserInfoUpdated = useCallback((uid: number, userInfo: any) => {
+    log.info(`User info updated: ${uid}`, userInfo);
+  }, []);
 
   // Initialize the engine when the component mounts
   useEffect(() => {
@@ -345,6 +369,7 @@ export const useStreamPreparation = ({
     engine.current.addListener("onLeaveChannel", onLeaveChannel);
     engine.current.addListener("onUserJoined", onUserJoined);
     engine.current.addListener("onUserOffline", onUserOffline);
+    engine.current.addListener("onUserInfoUpdated", onUserInfoUpdated);
 
     return () => {
       engine.current.removeListener("onError", onError);
@@ -355,6 +380,7 @@ export const useStreamPreparation = ({
       engine.current.removeListener("onLeaveChannel", onLeaveChannel);
       engine.current.removeListener("onUserJoined", onUserJoined);
       engine.current.removeListener("onUserOffline", onUserOffline);
+      engine.current.removeListener("onUserInfoUpdated", onUserInfoUpdated);
     };
   }, [
     isInitialized,
@@ -363,6 +389,7 @@ export const useStreamPreparation = ({
     onLeaveChannel,
     onUserJoined,
     onUserOffline,
+    onUserInfoUpdated,
   ]);
 
   // Join channel when token is available (if autoJoin is true)
@@ -387,6 +414,14 @@ export const useStreamPreparation = ({
     autoJoin,
   ]);
 
+  // Set initial count when joining channel
+  useEffect(() => {
+    if (joinChannelSuccess) {
+      viewersRef.current.add(userId || "broadcaster");
+      setViewerCount(viewersRef.current.size);
+    }
+  }, [joinChannelSuccess, userId]);
+
   return {
     engine: engine.current,
     isInitialized,
@@ -402,5 +437,8 @@ export const useStreamPreparation = ({
     joinChannel,
     renewToken,
     leaveChannel,
+    // Viewer count functionality
+    viewerCount,
+    refreshViewerCount: () => setViewerCount(viewersRef.current.size),
   };
 };

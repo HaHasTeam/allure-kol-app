@@ -5,6 +5,8 @@ import { GET, POST, PUT, DELETE } from "@/utils/api.caller";
 import { useApi } from "./useApi";
 import type { ApiError } from "@/utils/error-handler";
 import { ClientRoleType } from "react-native-agora";
+import { LiveStreamEnum } from "@/types/enum";
+import { LiveSteamDetail } from "@/components/product-bottom-sheet";
 export interface TokenResponse {
   token: string;
 }
@@ -17,6 +19,7 @@ export interface LivestreamFormData {
   account: string;
   thumbnail?: string;
   products: string[];
+  status?: string;
 }
 // Define token request and response types
 export interface TokenRequestParams {
@@ -33,7 +36,8 @@ export interface LivestreamResponse {
   endTime: string;
   record: string | null;
   thumbnail: string | null;
-  status: string;
+  status: LiveStreamEnum;
+  livestreamProducts: LiveSteamDetail[];
 }
 
 // Define filter parameters type for livestreams

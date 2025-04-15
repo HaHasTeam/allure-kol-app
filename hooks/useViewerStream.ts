@@ -125,7 +125,11 @@ export const useViewerStream = ({
 
   const onJoinChannelSuccess = useCallback(
     (connection: RtcConnection, elapsed: number) => {
-      log.info("Successfully joined channel as viewer:", connection.channelId);
+      log.info(
+        "Successfully joined channel as viewer:",
+        connection.channelId,
+        channel
+      );
       if (connection.channelId === channel) {
         setJoinChannelSuccess(true);
       }
@@ -148,7 +152,13 @@ export const useViewerStream = ({
 
   const onUserJoined = useCallback(
     (connection: RtcConnection, remoteUid: number, elapsed: number) => {
-      log.debug("Host joined:", remoteUid);
+      log.debug(
+        "Host joined:",
+        remoteUid,
+        hostUid,
+        connection.channelId,
+        channel
+      );
       if (connection.channelId === channel) {
         // Assuming the first broadcaster is the host
         setHostUid(remoteUid);
@@ -173,6 +183,16 @@ export const useViewerStream = ({
 
   const onRemoteVideoStateChanged = useCallback(
     (connection: RtcConnection, remoteUid: number, state: number) => {
+      console.log(
+        "onRemoteVideoStateChanged",
+        connection.channelId === channel && remoteUid === hostUid,
+        connection.channelId,
+        channel,
+        "remoteUid: ",
+        remoteUid,
+        hostUid
+      );
+
       if (connection.channelId === channel && remoteUid === hostUid) {
         // State 2 means the remote video is playing
         setIsHostVideoEnabled(state === 2);
@@ -183,6 +203,16 @@ export const useViewerStream = ({
 
   const onRemoteAudioStateChanged = useCallback(
     (connection: RtcConnection, remoteUid: number, state: number) => {
+      console.log(
+        "onRemoteAudioStateChanged",
+        connection.channelId === channel && remoteUid === hostUid,
+        connection.channelId,
+        channel,
+        "remoteUid: ",
+        remoteUid,
+        hostUid
+      );
+
       if (connection.channelId === channel && remoteUid === hostUid) {
         // State 2 means the remote audio is playing
         setIsHostAudioEnabled(state === 2);

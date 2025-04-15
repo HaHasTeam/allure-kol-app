@@ -10,6 +10,7 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Text, Card } from "react-native-ui-lib";
 import { useRouter } from "expo-router";
@@ -25,6 +26,119 @@ import useLivestreams, {
   type LivestreamResponse,
 } from "@/hooks/api/useLivestreams";
 
+// Separate component for stream item to properly use hooks
+const StreamItem = ({
+  item,
+  formatDate,
+  formatTime,
+  getTimeDescription,
+  onStartStream,
+}: {
+  item: LivestreamResponse;
+  formatDate: (date: string) => string;
+  formatTime: (date: string) => string;
+  getTimeDescription: (date: string) => string;
+  onStartStream: (stream: LivestreamResponse) => Promise<void>;
+}) => {
+  const now = new Date();
+  const streamStartTime = new Date(item.startTime);
+  const isPastEvent = streamStartTime < now;
+  const [isStarting, setIsStarting] = useState(false);
+
+  const handleStart = async () => {
+    setIsStarting(true);
+    try {
+      await onStartStream(item);
+    } catch (error) {
+      console.error("Error starting stream:", error);
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  return (
+    <Card style={styles.streamCard}>
+      <View
+        style={[
+          styles.streamCardContent,
+          isPastEvent && styles.pastStreamCardContent,
+        ]}
+      >
+        {/* Thumbnail */}
+        <View style={styles.thumbnailContainer}>
+          {item.thumbnail ? (
+            <Image source={{ uri: item.thumbnail }} style={styles.thumbnail} />
+          ) : (
+            <View
+              style={[
+                styles.placeholderThumbnail,
+                isPastEvent && styles.pastPlaceholderThumbnail,
+              ]}
+            >
+              <Feather
+                name="video"
+                size={24}
+                color={isPastEvent ? "#94a3b8" : "#94a3b8"}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Stream Info */}
+        <View style={styles.streamInfo}>
+          <Text
+            style={[styles.streamTitle, isPastEvent && styles.pastStreamTitle]}
+            numberOfLines={2}
+          >
+            {item.title}
+          </Text>
+
+          <View style={styles.streamMetaRow}>
+            <Feather name="calendar" size={12} color="#64748b" />
+            <Text style={styles.streamMetaText}>
+              {formatDate(item.startTime)}
+            </Text>
+          </View>
+
+          <View style={styles.streamMetaRow}>
+            <Feather name="clock" size={12} color="#64748b" />
+            <Text style={styles.streamMetaText}>
+              {formatTime(item.startTime)}
+            </Text>
+          </View>
+
+          <Text
+            style={[
+              styles.timeUntilStart,
+              isPastEvent && styles.pastTimeUntilStart,
+            ]}
+          >
+            {getTimeDescription(item.startTime)}
+          </Text>
+        </View>
+
+        {/* Start Button */}
+        <TouchableOpacity
+          style={[styles.startButton, isPastEvent && styles.pastStartButton]}
+          onPress={handleStart}
+          disabled={isPastEvent || isStarting}
+        >
+          {isStarting ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Feather name="video" size={20} color="#fff" />
+              <Text style={styles.startButtonText}>
+                {isPastEvent ? "Ended" : "Start"}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </Card>
+  );
+};
+
 export default function LiveScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -32,7 +146,7 @@ export default function LiveScreen() {
   const [upcomingStreams, setUpcomingStreams] = useState<LivestreamResponse[]>(
     []
   );
-  const { getLivestreams } = useLivestreams();
+  const { getLivestreams, updateLivestream } = useLivestreams();
 
   // Animation for the button
   const buttonScale = useSharedValue(1);
@@ -136,109 +250,33 @@ export default function LiveScreen() {
     router.push("/(app)/(livestream)/create-livestream");
   };
 
-  const handleStartStream = (stream: LivestreamResponse) => {
-    // Navigate to stream configuration screen with the stream data
-    router.push({
-      pathname: "/(app)/(livestream)/stream-config",
-      params: {
-        id: stream.id,
-        title: stream.title,
-      },
-    });
+  const handleStartStream = async (stream: LivestreamResponse) => {
+    try {
+      // Update the livestream status to LIVE and set startTime to current time
+      const currentTime = new Date().toISOString();
+      const updatedStream = await updateLivestream(stream.id, {
+        status: "LIVE", // Using string value directly as per the LiveStreamEnum
+        startTime: currentTime,
+      });
+      console.log("updatedStream", updatedStream);
+
+      // Navigate to stream configuration screen with the stream data
+      router.push({
+        pathname: "/(app)/(livestream)/stream-config",
+        params: {
+          id: stream.id,
+          title: stream.title,
+        },
+      });
+    } catch (error) {
+      console.error("Error starting livestream:", error);
+      Alert.alert("Error", "Failed to start the livestream. Please try again.");
+    }
   };
 
   const showComingSoonToast = () => {
     // You can implement a toast notification here
     console.log("This feature is coming soon!");
-  };
-
-  const renderUpcomingStream = ({ item }: { item: LivestreamResponse }) => {
-    const now = new Date();
-    const streamStartTime = new Date(item.startTime);
-    const isPastEvent = streamStartTime < now;
-
-    return (
-      <Card style={styles.streamCard}>
-        <View
-          style={[
-            styles.streamCardContent,
-            isPastEvent && styles.pastStreamCardContent,
-          ]}
-        >
-          {/* Thumbnail */}
-          <View style={styles.thumbnailContainer}>
-            {item.thumbnail ? (
-              <Image
-                source={{ uri: item.thumbnail }}
-                style={styles.thumbnail}
-              />
-            ) : (
-              <View
-                style={[
-                  styles.placeholderThumbnail,
-                  isPastEvent && styles.pastPlaceholderThumbnail,
-                ]}
-              >
-                <Feather
-                  name="video"
-                  size={24}
-                  color={isPastEvent ? "#94a3b8" : "#94a3b8"}
-                />
-              </View>
-            )}
-          </View>
-
-          {/* Stream Info */}
-          <View style={styles.streamInfo}>
-            <Text
-              style={[
-                styles.streamTitle,
-                isPastEvent && styles.pastStreamTitle,
-              ]}
-              numberOfLines={2}
-            >
-              {item.title}
-            </Text>
-
-            <View style={styles.streamMetaRow}>
-              <Feather name="calendar" size={12} color="#64748b" />
-              <Text style={styles.streamMetaText}>
-                {formatDate(item.startTime)}
-              </Text>
-            </View>
-
-            <View style={styles.streamMetaRow}>
-              <Feather name="clock" size={12} color="#64748b" />
-              <Text style={styles.streamMetaText}>
-                {formatTime(item.startTime)}
-              </Text>
-            </View>
-
-            <Text
-              style={[
-                styles.timeUntilStart,
-                isPastEvent && styles.pastTimeUntilStart,
-              ]}
-            >
-              {getTimeDescription(item.startTime)}
-            </Text>
-          </View>
-
-          {/* Start Button */}
-          <TouchableOpacity
-            // style={[styles.startButton, isPastEvent && styles.pastStartButton]}
-            style={[styles.startButton]}
-            onPress={() => handleStartStream(item)}
-            // disabled={isPastEvent}
-          >
-            <Feather name="video" size={20} color="#fff" />
-            <Text style={styles.startButtonText}>
-              {isPastEvent ? "Ended" : "Start"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </Card>
-    );
   };
 
   const renderUpcomingStreamsContent = () => {
@@ -270,7 +308,15 @@ export default function LiveScreen() {
     return (
       <FlatList
         data={upcomingStreams}
-        renderItem={renderUpcomingStream}
+        renderItem={({ item }) => (
+          <StreamItem
+            item={item}
+            formatDate={formatDate}
+            formatTime={formatTime}
+            getTimeDescription={getTimeDescription}
+            onStartStream={handleStartStream}
+          />
+        )}
         keyExtractor={(item) => item.id}
         scrollEnabled={false}
       />
