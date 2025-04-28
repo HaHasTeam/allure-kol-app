@@ -39,6 +39,10 @@ import { useFirebaseChat } from "@/hooks/useFirebaseChat";
 import ProductsBottomSheet, {
   type LiveSteamDetail,
 } from "@/components/product-bottom-sheet";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 const { width, height } = Dimensions.get("window");
 
@@ -108,6 +112,8 @@ export default function LiveStreamingScreen() {
     }>
   >(null);
 
+  const insets = useSafeAreaInsets();
+
   // Set up pan responder for gesture-based scrolling
   const panResponder = useRef(
     PanResponder.create({
@@ -165,7 +171,6 @@ export default function LiveStreamingScreen() {
 
   // Animation values
   const controlsOpacity = useSharedValue(1);
-  const fabScale = useSharedValue(1);
 
   // Get params
   const { getLivestreamToken, getLivestreamById, updateLivestream } =
@@ -460,20 +465,6 @@ export default function LiveStreamingScreen() {
       .padStart(2, "0")}`;
   };
 
-  // Format timestamp
-  const formatTimestamp = (timestamp: number) => {
-    const now = Date.now();
-    const diff = now - timestamp;
-
-    if (diff < 60000) {
-      return "just now";
-    } else if (diff < 3600000) {
-      return `${Math.floor(diff / 60000)}m ago`;
-    } else {
-      return `${Math.floor(diff / 3600000)}h ago`;
-    }
-  };
-
   // Check if scroll position is near the bottom
   const isNearBottom = () => {
     if (!chatListRef.current || chatMessages.length === 0) return true;
@@ -635,7 +626,7 @@ export default function LiveStreamingScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={dismissKeyboard}>
-      <View style={styles.container} onTouchStart={resetControlsTimer}>
+      <SafeAreaView style={styles.container} onTouchStart={resetControlsTimer}>
         <StatusBar hidden />
 
         {/* Video Stream */}
@@ -685,7 +676,13 @@ export default function LiveStreamingScreen() {
         <View
           style={[
             styles.tiktokChatContainer,
-            isKeyboardVisible && { bottom: Platform.OS === "ios" ? 120 : 100 },
+            {
+              bottom: isKeyboardVisible
+                ? Platform.OS === "ios"
+                  ? 120
+                  : 100
+                : 80 + insets.bottom,
+            },
           ]}
           {...panResponder.panHandlers}
         >
@@ -764,10 +761,23 @@ export default function LiveStreamingScreen() {
         {/* Replace the View with KeyboardAvoidingView */}
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 10}
-          style={styles.keyboardAvoidingView}
+          keyboardVerticalOffset={
+            Platform.OS === "ios" ? 20 + insets.bottom : 10
+          }
+          style={[
+            styles.keyboardAvoidingView,
+            { paddingBottom: insets.bottom },
+          ]}
         >
-          <View style={styles.inputRowContainer}>
+          <View
+            style={[
+              styles.inputRowContainer,
+              {
+                paddingBottom:
+                  Platform.OS === "ios" ? Math.max(30, insets.bottom) : 24,
+              },
+            ]}
+          >
             {/* Cart button on the left */}
             <TouchableOpacity
               style={styles.inputSideButton}
@@ -922,7 +932,7 @@ export default function LiveStreamingScreen() {
           onClose={closeProductsModal}
           products={listProduct}
         />
-      </View>
+      </SafeAreaView>
     </TouchableWithoutFeedback>
   );
 }
@@ -1092,7 +1102,7 @@ const styles = StyleSheet.create({
   // TikTok-style chat container
   tiktokChatContainer: {
     position: "absolute",
-    bottom: 80, // Leave space for the chat input
+    bottom: 80, // This will be adjusted with insets in the component
     left: 0,
     right: 0,
     maxHeight: height * 0.5, // Take up to half the screen height

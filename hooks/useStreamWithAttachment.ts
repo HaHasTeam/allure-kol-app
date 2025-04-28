@@ -206,7 +206,7 @@ export const useStreamWithAttachment = ({
     if (!isInitialized) return;
 
     try {
-      engine.current.muteLocalAudioStream(!isMicEnabled);
+      engine.current.muteLocalAudioStream(isMicEnabled);
       setIsMicEnabled(!isMicEnabled);
       log.debug(`Microphone ${!isMicEnabled ? "enabled" : "disabled"}`);
     } catch (error) {
@@ -221,7 +221,7 @@ export const useStreamWithAttachment = ({
     if (!isInitialized) return;
 
     try {
-      engine.current.muteLocalVideoStream(!isCameraEnabled);
+      engine.current.muteLocalVideoStream(isCameraEnabled);
       setIsCameraEnabled(!isCameraEnabled);
       log.debug(`Camera ${!isCameraEnabled ? "enabled" : "disabled"}`);
     } catch (error) {
